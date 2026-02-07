@@ -64,16 +64,28 @@ configurePassport(passport);
 // Initialize database and start server
 async function startServer() {
     try {
+        // Start with empty db, connect later
+let db = null;
+
+// Attach database to all requests (will be null initially)
+app.use((req, res, next) => {
+    req.db = db;
+    req.app.locals.db = db;
+    next();
+});
+
+// Initialize database asynchronously (don't block server start)
+setTimeout(async () => {
+    try {
         console.log('Initializing MySQL database...');
-        const db = await initializeDatabase();
+        db = await initializeDatabase();
         console.log('MySQL database initialized successfully');
-        
-        // Attach database to all requests
-        app.use((req, res, next) => {
-            req.db = db;
-            req.app.locals.db = db;
-            next();
-        });
+    } catch (error) {
+        console.error('Database connection failed:', error);
+        console.log('Server will continue without database');
+    }
+}, 1000); // Wait 1 second then try to connect
+
         
         // Health check endpoint
         app.get('/api/health', (req, res) => {
