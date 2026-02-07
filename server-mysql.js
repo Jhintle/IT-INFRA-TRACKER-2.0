@@ -110,7 +110,7 @@ async function startServer() {
             res.status(404).json({ error: 'Endpoint not found' });
         });
         
-        const PORT = process.env.PORT || 3000;
+        const PORT = process.env.PORT || 8080;
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`MySQL Server running on port ${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
