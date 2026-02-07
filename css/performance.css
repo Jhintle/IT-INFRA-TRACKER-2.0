@@ -1,0 +1,101 @@
+/* Performance Optimizations */
+
+/* GPU Acceleration for smooth animations */
+.summary-card,
+.nav-tab,
+.btn,
+.modal {
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+/* Reduce repaints on scroll */
+.header,
+.nav-tabs {
+    will-change: transform;
+    contain: layout style;
+}
+
+/* Optimize table rendering */
+.data-table {
+    contain: layout;
+}
+
+.data-table tbody {
+    will-change: contents;
+}
+
+/* Prevent layout shifts */
+.table-container {
+    min-height: 200px;
+}
+
+/* Optimize chart rendering */
+canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* REMOVED: Content visibility was causing dashboard layout issues */
+/* .tab-content {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 500px;
+}
+
+.tab-content.active {
+    content-visibility: visible;
+} */
+
+/* Optimize empty states */
+.empty-state {
+    contain: layout style;
+}
+
+/* Smooth scrolling but only when needed */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Reduce paint areas */
+.section-header,
+.filter-section {
+    contain: layout;
+}
+
+/* Optimize badge rendering */
+.badge {
+    contain: layout style;
+}
+
+/* Optimize progress bars */
+.progress {
+    contain: layout style paint;
+}
+
+/* Dashboard Chart Height Fixes */
+.chart-container {
+    position: relative;
+}
+
+/* Ensure charts don't cause overflow issues */
+#vulnerabilityChart {
+    max-height: 280px !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1;
+}
+
+#projectChart {
+    max-height: 300px !important;
+    height: 300px !important;
+}
