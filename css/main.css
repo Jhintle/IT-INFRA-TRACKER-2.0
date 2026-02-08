@@ -91,12 +91,8 @@ body {
     height: 40px;
     width: auto;
     object-fit: contain;
-    /* Add white background to make logo visible in all themes */
-    background-color: white;
-    padding: 4px;
-    border-radius: 4px;
-    /* Ensure logo stands out */
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    /* Invert colors in light mode to make dark logo visible on dark header */
+    filter: brightness(0) invert(1);
 }
 
 .logo-text {
