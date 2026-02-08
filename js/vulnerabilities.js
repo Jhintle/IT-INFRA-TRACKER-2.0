@@ -963,7 +963,7 @@ class VulnerabilitiesManager {
             <div class="modal" id="vulnerabilityModal">
                 <div class="modal-header">
                     <h3 class="modal-title">${vulnerability ? 'Edit Vulnerability' : 'Add New Vulnerability'}</h3>
-                    <button class="modal-close" onclick="vulnerabilitiesManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="vulnerabilityModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="vulnerabilityForm">
@@ -1028,8 +1028,8 @@ class VulnerabilitiesManager {
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="vulnerabilitiesManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="vulnerabilitiesManager.saveVulnerability(${vulnerability?.id || null})">
+                    <button type="button" class="btn btn-secondary" id="vulnerabilityModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="vulnerabilityModalSave">
                         ${vulnerability ? 'Update Vulnerability' : 'Add Vulnerability'}
                     </button>
                 </div>
@@ -1040,17 +1040,27 @@ class VulnerabilitiesManager {
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
 
+        // Attach event listeners
+        const vulnerabilityId = vulnerability?.id || null;
+        
+        document.getElementById('vulnerabilityModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('vulnerabilityModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('vulnerabilityModalSave').addEventListener('click', () => this.saveVulnerability(vulnerabilityId));
+
         setTimeout(() => {
-            document.getElementById('vulnerabilityTitle').focus();
+            const titleInput = document.getElementById('vulnerabilityTitle');
+            if (titleInput) titleInput.focus();
         }, 100);
 
         const statusSelect = document.getElementById('vulnerabilityStatus');
-        statusSelect.addEventListener('change', (e) => {
-            const resolvedDateField = document.getElementById('vulnerabilityResolvedDate');
-            if (e.target.value === 'Resolved' && !resolvedDateField.value) {
-                resolvedDateField.value = new Date().toISOString().split('T')[0];
-            }
-        });
+        if (statusSelect) {
+            statusSelect.addEventListener('change', (e) => {
+                const resolvedDateField = document.getElementById('vulnerabilityResolvedDate');
+                if (e.target.value === 'Resolved' && !resolvedDateField.value) {
+                    resolvedDateField.value = new Date().toISOString().split('T')[0];
+                }
+            });
+        }
     }
 
     async saveVulnerability(vulnerabilityId) {

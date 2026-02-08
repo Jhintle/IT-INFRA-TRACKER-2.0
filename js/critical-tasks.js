@@ -230,7 +230,7 @@ class CriticalTasksManager {
             <div class="modal" id="criticalTaskModal">
                 <div class="modal-header">
                     <h3 class="modal-title">${task ? 'Edit Critical Task' : 'Add New Critical Task'}</h3>
-                    <button class="modal-close" onclick="criticalTasksManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="criticalTaskModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="criticalTaskForm">
@@ -285,8 +285,8 @@ class CriticalTasksManager {
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="criticalTasksManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="criticalTasksManager.saveCriticalTask(${task?.id || null})">
+                    <button type="button" class="btn btn-secondary" id="criticalTaskModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="criticalTaskModalSave">
                         ${task ? 'Update Task' : 'Add Task'}
                     </button>
                 </div>
@@ -297,23 +297,33 @@ class CriticalTasksManager {
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
 
+        // Attach event listeners
+        const taskId = task?.id || null;
+        
+        document.getElementById('criticalTaskModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('criticalTaskModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('criticalTaskModalSave').addEventListener('click', () => this.saveCriticalTask(taskId));
+
         // Focus on title input
         setTimeout(() => {
-            document.getElementById('criticalTaskTitle').focus();
+            const titleInput = document.getElementById('criticalTaskTitle');
+            if (titleInput) titleInput.focus();
         }, 100);
 
         // Auto-archive when status changes to completed
         const statusSelect = document.getElementById('criticalTaskStatus');
-        statusSelect.addEventListener('change', (e) => {
-            const archivedCheckbox = document.getElementById('criticalTaskArchived');
-            if (e.target.value === 'Completed') {
-                archivedCheckbox.checked = true;
-                archivedCheckbox.disabled = false;
-            } else if (e.target.value !== 'Completed') {
-                archivedCheckbox.checked = false;
-                archivedCheckbox.disabled = false;
-            }
-        });
+        if (statusSelect) {
+            statusSelect.addEventListener('change', (e) => {
+                const archivedCheckbox = document.getElementById('criticalTaskArchived');
+                if (e.target.value === 'Completed') {
+                    archivedCheckbox.checked = true;
+                    archivedCheckbox.disabled = false;
+                } else if (e.target.value !== 'Completed') {
+                    archivedCheckbox.checked = false;
+                    archivedCheckbox.disabled = false;
+                }
+            });
+        }
     }
 
     async saveCriticalTask(taskId) {

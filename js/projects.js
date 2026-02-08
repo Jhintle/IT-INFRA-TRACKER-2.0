@@ -178,7 +178,7 @@ class ProjectsManager {
             <div class="modal" id="projectModal">
                 <div class="modal-header">
                     <h3 class="modal-title">${project ? 'Edit Project' : 'Add New Project'}</h3>
-                    <button class="modal-close" onclick="projectsManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="projectModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="projectForm">
@@ -203,8 +203,7 @@ class ProjectsManager {
                         <div class="form-group">
                             <label for="projectCompletion">Completion Percentage</label>
                             <input type="range" id="projectCompletion" class="form-control" 
-                                   min="0" max="100" value="${project?.completion_percentage || 0}"
-                                   oninput="document.getElementById('completionValue').textContent = this.value + '%'">
+                                   min="0" max="100" value="${project?.completion_percentage || 0}">
                             <small>Current: <span id="completionValue">${project?.completion_percentage || 0}%</span></small>
                         </div>
                         
@@ -226,8 +225,8 @@ class ProjectsManager {
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="projectsManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="(async () => await projectsManager.saveProject(${project?.id || null}))()">
+                    <button type="button" class="btn btn-secondary" id="projectModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="projectModalSave">
                         ${project ? 'Update Project' : 'Add Project'}
                     </button>
                 </div>
@@ -238,9 +237,22 @@ class ProjectsManager {
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
 
+        // Attach event listeners
+        const projectId = project?.id || null;
+        
+        document.getElementById('projectModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('projectModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('projectModalSave').addEventListener('click', () => this.saveProject(projectId));
+        
+        // Range input listener
+        document.getElementById('projectCompletion').addEventListener('input', (e) => {
+            document.getElementById('completionValue').textContent = e.target.value + '%';
+        });
+
         // Focus on title input
         setTimeout(() => {
-            document.getElementById('projectTitle').focus();
+            const titleInput = document.getElementById('projectTitle');
+            if (titleInput) titleInput.focus();
         }, 100);
     }
 

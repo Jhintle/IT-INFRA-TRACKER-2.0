@@ -196,7 +196,7 @@ class RisksManager {
             <div class="modal" id="riskModal">
                 <div class="modal-header">
                     <h3 class="modal-title">${risk ? 'Edit Risk' : 'Add New Risk'}</h3>
-                    <button class="modal-close" onclick="risksManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="riskModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="riskForm">
@@ -233,8 +233,8 @@ class RisksManager {
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="risksManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="(async () => await risksManager.saveRisk(${risk?.id || null}))()">
+                    <button type="button" class="btn btn-secondary" id="riskModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="riskModalSave">
                         ${risk ? 'Update Risk' : 'Add Risk'}
                     </button>
                 </div>
@@ -245,9 +245,17 @@ class RisksManager {
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
 
+        // Attach event listeners
+        const riskId = risk?.id || null;
+        
+        document.getElementById('riskModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('riskModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('riskModalSave').addEventListener('click', () => this.saveRisk(riskId));
+
         // Focus on description input
         setTimeout(() => {
-            document.getElementById('riskDescription').focus();
+            const descInput = document.getElementById('riskDescription');
+            if (descInput) descInput.focus();
         }, 100);
     }
 

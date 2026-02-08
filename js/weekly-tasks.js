@@ -195,7 +195,7 @@ class WeeklyTasksManager {
             <div class="modal" id="weeklyTaskModal">
                 <div class="modal-header">
                     <h3 class="modal-title">${task ? 'Edit Weekly Task' : 'Add New Weekly Task'}</h3>
-                    <button class="modal-close" onclick="weeklyTasksManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="weeklyTaskModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="weeklyTaskForm">
@@ -220,21 +220,21 @@ class WeeklyTasksManager {
                                         <input type="checkbox" id="checkItem_${index}" ${item.completed ? 'checked' : ''}>
                                         <input type="text" class="form-control checklist-item-input" 
                                                value="${this.escapeHtml(item.text)}" placeholder="Checklist item">
-                                        <button type="button" class="btn btn-danger btn-sm" onclick="weeklyTasksManager.removeChecklistItem(${index})">
+                                        <button type="button" class="btn btn-danger btn-sm checklist-remove-btn" data-index="${index}">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 `).join('')}
                             </div>
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="weeklyTasksManager.addChecklistItem()">
+                            <button type="button" class="btn btn-secondary btn-sm" id="addChecklistItemBtn">
                                 <i class="fas fa-plus"></i> Add Checklist Item
                             </button>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="weeklyTasksManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="(async () => { await weeklyTasksManager.saveWeeklyTask(${task?.id || null}); })()">
+                    <button type="button" class="btn btn-secondary" id="weeklyTaskModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="weeklyTaskModalSave">
                         ${task ? 'Update Task' : 'Add Task'}
                     </button>
                 </div>
@@ -245,9 +245,20 @@ class WeeklyTasksManager {
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
 
+        // Attach event listeners
+        const taskId = task?.id || null;
+        
+        document.getElementById('weeklyTaskModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('weeklyTaskModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('weeklyTaskModalSave').addEventListener('click', () => this.saveWeeklyTask(taskId));
+        
+        // Checklist item add button
+        document.getElementById('addChecklistItemBtn').addEventListener('click', () => this.addChecklistItem());
+
         // Focus on title input
         setTimeout(() => {
-            document.getElementById('weeklyTaskTitle').focus();
+            const titleInput = document.getElementById('weeklyTaskTitle');
+            if (titleInput) titleInput.focus();
         }, 100);
 
         // If no checklist items, add one empty item by default
@@ -256,6 +267,9 @@ class WeeklyTasksManager {
                 this.addChecklistItem();
             }, 100);
         }
+        
+        // Attach remove listeners to existing items
+        this.attachChecklistRemoveListeners();
     }
 
     addChecklistItem() {
@@ -268,12 +282,28 @@ class WeeklyTasksManager {
         itemRow.innerHTML = `
             <input type="checkbox" id="checkItem_${index}">
             <input type="text" class="form-control checklist-item-input" placeholder="Checklist item">
-            <button type="button" class="btn btn-danger btn-sm" onclick="weeklyTasksManager.removeChecklistItem(${index})">
+            <button type="button" class="btn btn-danger btn-sm checklist-remove-btn" data-index="${index}">
                 <i class="fas fa-trash"></i>
             </button>
         `;
         
         container.appendChild(itemRow);
+        
+        // Attach remove listener to the new button
+        const removeBtn = itemRow.querySelector('.checklist-remove-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => this.removeChecklistItem(index));
+        }
+    }
+
+    attachChecklistRemoveListeners() {
+        const container = document.getElementById('checklistContainer');
+        if (!container) return;
+        
+        container.querySelectorAll('.checklist-remove-btn').forEach(btn => {
+            const index = parseInt(btn.dataset.index);
+            btn.addEventListener('click', () => this.removeChecklistItem(index));
+        });
     }
 
     removeChecklistItem(index) {
@@ -289,7 +319,11 @@ class WeeklyTasksManager {
                 const button = child.querySelector('button');
                 
                 checkbox.id = `checkItem_${newIndex}`;
-                button.setAttribute('onclick', `weeklyTasksManager.removeChecklistItem(${newIndex})`);
+                button.dataset.index = newIndex;
+                // Remove old listener and add new one
+                const newBtn = button.cloneNode(true);
+                button.parentNode.replaceChild(newBtn, button);
+                newBtn.addEventListener('click', () => this.removeChecklistItem(newIndex));
             });
         }
     }
