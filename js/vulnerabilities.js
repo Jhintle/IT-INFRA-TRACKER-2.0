@@ -362,13 +362,24 @@ class VulnerabilitiesManager {
                                 <i class="fas fa-shield-alt"></i>
                                 <h3>No vulnerabilities found</h3>
                                 <p>Import Wipro Excel file or add your first vulnerability report</p>
-                                <button class="btn btn-primary" onclick="document.getElementById('importXlsxBtn').click()">
+                                <button class="btn btn-primary" id="emptyStateImportBtn">
                                     <i class="fas fa-file-import"></i> Import Excel
                                 </button>
                             </div>
                         </td>
                     </tr>
                 `;
+                
+                // Attach event listener to the import button
+                setTimeout(() => {
+                    const importBtn = document.getElementById('emptyStateImportBtn');
+                    if (importBtn) {
+                        importBtn.addEventListener('click', () => {
+                            const xlsxBtn = document.getElementById('importXlsxBtn');
+                            if (xlsxBtn) xlsxBtn.click();
+                        });
+                    }
+                }, 0);
                 return;
             }
 
@@ -394,7 +405,7 @@ class VulnerabilitiesManager {
                 }
                 
                 return `
-                <tr ${rowStyle}>
+                <tr ${rowStyle} data-vulnerability-id="${vulnerability.id}">
                     <td><strong>${this.escapeHtml(vulnerability.title)}</strong></td>
                     <td>
                         <span class="badge badge-${this.getSeverityClass(vulnerability.severity)}">
@@ -411,10 +422,10 @@ class VulnerabilitiesManager {
                     </td>
                     <td>
                         <div class="action-buttons">
-                            <button class="edit-btn" onclick="vulnerabilitiesManager.editVulnerability(${vulnerability.id})" title="Edit">
+                            <button class="edit-btn vulnerability-edit-btn" data-id="${vulnerability.id}" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="delete-btn" onclick="vulnerabilitiesManager.deleteVulnerability(${vulnerability.id})" title="Delete">
+                            <button class="delete-btn vulnerability-delete-btn" data-id="${vulnerability.id}" title="Delete">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -423,6 +434,23 @@ class VulnerabilitiesManager {
             `}).join('');
             
             tbody.innerHTML = html;
+            
+            // Attach event listeners to edit and delete buttons
+            setTimeout(() => {
+                tbody.querySelectorAll('.vulnerability-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.editVulnerability(id);
+                    });
+                });
+                
+                tbody.querySelectorAll('.vulnerability-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.deleteVulnerability(id);
+                    });
+                });
+            }, 0);
         });
     }
 
@@ -510,7 +538,7 @@ class VulnerabilitiesManager {
             <div class="modal" id="sheetSelectorModal">
                 <div class="modal-header">
                     <h3 class="modal-title">Select Excel Sheet to Import</h3>
-                    <button class="modal-close" onclick="vulnerabilitiesManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="sheetSelectorModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <p>File: <strong>${filename}</strong></p>
@@ -529,8 +557,8 @@ class VulnerabilitiesManager {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="vulnerabilitiesManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="vulnerabilitiesManager.importSelectedSheet()">
+                    <button type="button" class="btn btn-secondary" id="sheetSelectorModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="sheetSelectorModalImport">
                         <i class="fas fa-file-import"></i> Import Selected Sheet
                     </button>
                 </div>
@@ -540,6 +568,11 @@ class VulnerabilitiesManager {
         const modalContainer = document.getElementById('modalContainer');
         modalContainer.innerHTML = modalHtml;
         modalContainer.classList.add('active');
+        
+        // Attach event listeners
+        document.getElementById('sheetSelectorModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('sheetSelectorModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('sheetSelectorModalImport').addEventListener('click', () => this.importSelectedSheet());
         
         // Store workbook for later use
         this.currentWorkbook = workbook;
@@ -600,7 +633,7 @@ class VulnerabilitiesManager {
             <div class="modal" id="previewModal">
                 <div class="modal-header">
                     <h3 class="modal-title">Excel Import Preview</h3>
-                    <button class="modal-close" onclick="vulnerabilitiesManager.closeModal()">&times;</button>
+                    <button class="modal-close" id="previewModalClose">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div style="margin-bottom: 1rem;">
@@ -647,8 +680,8 @@ class VulnerabilitiesManager {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="vulnerabilitiesManager.closeModal()">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="vulnerabilitiesManager.confirmImport('${sheetName}')">
+                    <button type="button" class="btn btn-secondary" id="previewModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="previewModalImport">
                         <i class="fas fa-file-import"></i> Proceed with Import
                     </button>
                 </div>
@@ -658,6 +691,11 @@ class VulnerabilitiesManager {
         const modalContainer = document.getElementById('modalContainer');
         modalContainer.innerHTML = previewHtml;
         modalContainer.classList.add('active');
+        
+        // Attach event listeners
+        document.getElementById('previewModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('previewModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('previewModalImport').addEventListener('click', () => this.confirmImport(sheetName));
         
         // Store data for import
         this.previewData = { workbook, sheetName, headers };
