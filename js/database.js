@@ -251,6 +251,7 @@ class DatabaseManager {
 
         // Use API
         try {
+            let result;
             switch (table) {
                 case 'projects':
                     result = await api.updateProject(id, data);

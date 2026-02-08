@@ -47,6 +47,15 @@ try {
     // Logging
     app.use(morgan('combined'));
 
+    // Content Security Policy: allow external scripts for charts and SQL wasm
+    app.use((req, res, next) => {
+        res.setHeader(
+            'Content-Security-Policy',
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/chart.js https://sql.js.org/dist; script-src-elem 'self' https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/chart.js https://sql.js.org/dist;"
+        );
+        next();
+    });
+
     // Body parsing
     app.use(express.json({ limit: '10mb' }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
