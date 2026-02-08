@@ -109,6 +109,55 @@ try {
     app.use('/api', apiRoutes);
     console.log('API routes registered');
 
+    // Serve static HTML files
+    console.log('__dirname:', __dirname);
+    console.log('Registering root route...');
+    
+    app.get('/', (req, res) => {
+        console.log('Root route hit, serving login.html');
+        const filePath = path.join(__dirname, 'login.html');
+        console.log('File path:', filePath);
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error('Error serving login.html:', err);
+                res.status(404).json({ error: 'Login page not found', details: err.message });
+            }
+        });
+    });
+    
+    app.get('/login', (req, res) => {
+        res.sendFile(path.join(__dirname, 'login.html'), (err) => {
+            if (err) {
+                console.error('Error serving login.html:', err);
+                res.status(404).json({ error: 'Login page not found' });
+            }
+        });
+    });
+    
+    app.get('/dashboard', (req, res) => {
+        res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+            if (err) {
+                console.error('Error serving index.html:', err);
+                res.status(404).json({ error: 'Dashboard page not found' });
+            }
+        });
+    });
+    
+    app.get('/admin', (req, res) => {
+        res.sendFile(path.join(__dirname, 'admin.html'), (err) => {
+            if (err) {
+                console.error('Error serving admin.html:', err);
+                res.status(404).json({ error: 'Admin page not found' });
+            }
+        });
+    });
+    
+    // Serve static assets (css, js, assets)
+    app.use('/css', express.static(path.join(__dirname, 'css')));
+    app.use('/js', express.static(path.join(__dirname, 'js')));
+    app.use('/assets', express.static(path.join(__dirname, 'assets')));
+    console.log('Static file routes registered');
+
     // Error handling middleware
     app.use((err, req, res, next) => {
         console.error('Server error:', err.message);
@@ -118,9 +167,16 @@ try {
         });
     });
 
+    // Debug middleware to log all unmatched requests
+    app.use((req, res, next) => {
+        console.log(`DEBUG: Unmatched request - ${req.method} ${req.url} from ${req.ip}`);
+        next();
+    });
+
     // 404 handler
     app.use((req, res) => {
-        res.status(404).json({ error: 'Endpoint not found' });
+        console.log(`404 Not Found: ${req.method} ${req.url}`);
+        res.status(404).json({ error: 'Endpoint not found', path: req.url, method: req.method });
     });
 
     // Start server immediately
