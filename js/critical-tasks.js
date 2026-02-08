@@ -209,20 +209,45 @@ class CriticalTasksManager {
                 </td>
                 <td>
                     <div class="action-buttons">
-                        <button class="edit-btn" onclick="criticalTasksManager.editCriticalTask(${task.id})" title="Edit">
+                        <button class="edit-btn critical-task-edit-btn" data-id="${task.id}" title="Edit">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="archive-btn" onclick="criticalTasksManager.toggleArchive(${task.id}, ${task.is_archived})" 
+                        <button class="archive-btn critical-task-archive-btn" data-id="${task.id}" data-archived="${task.is_archived}" 
                                 title="${task.is_archived ? 'Unarchive' : 'Archive'}">
                             <i class="fas fa-${task.is_archived ? 'undo' : 'archive'}"></i>
                         </button>
-                        <button class="delete-btn" onclick="criticalTasksManager.deleteCriticalTask(${task.id})" title="Delete">
+                        <button class="delete-btn critical-task-delete-btn" data-id="${task.id}" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </td>
             </tr>
         `).join('');
+        
+        // Attach event listeners to action buttons
+        setTimeout(() => {
+            document.querySelectorAll('.critical-task-edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.editCriticalTask(id);
+                });
+            });
+            
+            document.querySelectorAll('.critical-task-archive-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const isArchived = e.currentTarget.dataset.archived === '1';
+                    this.toggleArchive(id, isArchived);
+                });
+            });
+            
+            document.querySelectorAll('.critical-task-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.deleteCriticalTask(id);
+                });
+            });
+        }, 0);
     }
 
     showCriticalTaskModal(task = null) {

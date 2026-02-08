@@ -175,20 +175,45 @@ class RisksManager {
                 <td>${this.escapeHtml(risk.required_action || '-')}</td>
                 <td>
                     <div class="action-buttons">
-                        <button class="edit-btn" onclick="(async () => await risksManager.editRisk(${risk.id}))()" title="Edit">
+                        <button class="edit-btn risk-edit-btn" data-id="${risk.id}" title="Edit">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="archive-btn" onclick="(async () => await risksManager.toggleArchive(${risk.id}, ${risk.is_archived}))()" 
+                        <button class="archive-btn risk-archive-btn" data-id="${risk.id}" data-archived="${risk.is_archived}" 
                                 title="${risk.is_archived ? 'Unarchive' : 'Archive'}">
                             <i class="fas fa-${risk.is_archived ? 'undo' : 'archive'}"></i>
                         </button>
-                        <button class="delete-btn" onclick="(async () => await risksManager.deleteRisk(${risk.id}))()" title="Delete">
+                        <button class="delete-btn risk-delete-btn" data-id="${risk.id}" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </td>
             </tr>
         `).join('');
+        
+        // Attach event listeners to action buttons
+        setTimeout(() => {
+            document.querySelectorAll('.risk-edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.editRisk(id);
+                });
+            });
+            
+            document.querySelectorAll('.risk-archive-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    const isArchived = e.currentTarget.dataset.archived === '1';
+                    this.toggleArchive(id, isArchived);
+                });
+            });
+            
+            document.querySelectorAll('.risk-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.deleteRisk(id);
+                });
+            });
+        }, 0);
     }
 
     showRiskModal(risk = null) {

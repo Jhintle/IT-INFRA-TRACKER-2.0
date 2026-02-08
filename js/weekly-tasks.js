@@ -157,10 +157,10 @@ class WeeklyTasksManager {
                     </td>
                     <td>
                         <div class="action-buttons">
-                            <button class="edit-btn" onclick="(async () => { await weeklyTasksManager.editWeeklyTask(${task.id}); })()" title="Edit">
+                            <button class="edit-btn weekly-task-edit-btn" data-id="${task.id}" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="delete-btn" onclick="(async () => { await weeklyTasksManager.deleteWeeklyTask(${task.id}); })()" title="Delete">
+                            <button class="delete-btn weekly-task-delete-btn" data-id="${task.id}" title="Delete">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -168,6 +168,23 @@ class WeeklyTasksManager {
                 </tr>
             `;
         }).join('');
+        
+        // Attach event listeners to action buttons
+        setTimeout(() => {
+            document.querySelectorAll('.weekly-task-edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.editWeeklyTask(id);
+                });
+            });
+            
+            document.querySelectorAll('.weekly-task-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.deleteWeeklyTask(id);
+                });
+            });
+        }, 0);
     }
 
     renderMiniChecklist(checklist, taskId) {

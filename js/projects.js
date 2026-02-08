@@ -158,10 +158,10 @@ class ProjectsManager {
                     </td>
                     <td>
                         <div class="action-buttons">
-                            <button class="edit-btn" onclick="(async () => await projectsManager.editProject(${project.id}))()" title="Edit">
+                            <button class="edit-btn project-edit-btn" data-id="${project.id}" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="delete-btn" onclick="(async () => await projectsManager.deleteProject(${project.id}))()" title="Delete">
+                            <button class="delete-btn project-delete-btn" data-id="${project.id}" title="Delete">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -170,6 +170,23 @@ class ProjectsManager {
             `).join('');
             
             tbody.innerHTML = html;
+            
+            // Attach event listeners to edit and delete buttons
+            setTimeout(() => {
+                tbody.querySelectorAll('.project-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.editProject(id);
+                    });
+                });
+                
+                tbody.querySelectorAll('.project-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.deleteProject(id);
+                    });
+                });
+            }, 0);
         });
     }
 
