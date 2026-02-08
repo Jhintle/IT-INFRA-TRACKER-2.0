@@ -91,6 +91,12 @@ body {
     height: 40px;
     width: auto;
     object-fit: contain;
+    /* Add white background to make logo visible in all themes */
+    background-color: white;
+    padding: 4px;
+    border-radius: 4px;
+    /* Ensure logo stands out */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .logo-text {
