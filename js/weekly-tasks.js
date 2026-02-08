@@ -400,14 +400,18 @@ class WeeklyTasksManager {
             this.closeModal();
             await this.loadWeeklyTasks();
             
-            // Update dashboard if it's active
-            if (window.dashboardManager) {
-                window.dashboardManager.updateDashboard();
+            // Update dashboard if it's active (don't let dashboard errors break the save)
+            try {
+                if (window.dashboardManager && window.dashboardManager.updateDashboard) {
+                    window.dashboardManager.updateDashboard();
+                }
+            } catch (dashboardError) {
+                console.warn('Dashboard update failed (non-critical):', dashboardError);
             }
 
         } catch (error) {
             console.error('Error saving weekly task:', error);
-            this.showError('Failed to save weekly task');
+            this.showError('Failed to save weekly task: ' + (error.message || 'Unknown error'));
         }
     }
 
