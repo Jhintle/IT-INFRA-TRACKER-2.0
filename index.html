@@ -12,8 +12,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/database.js"></script>
     <script src="js/offline-api.js"></script>
     <script src="js/api-client.js"></script>
+    <script src="js/projects.js"></script>
+    <script src="js/weekly-tasks.js"></script>
+    <script src="js/vulnerabilities.js"></script>
+    <script src="js/risks.js"></script>
+    <script src="js/critical-tasks.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/demo-data.js"></script>
     <script src="js/app.js"></script>
 </head>
 <body>
@@ -60,6 +68,15 @@
                     <button class="btn btn-primary" id="addItemBtn">
                         <i class="fas fa-plus"></i><span>Add New</span>
                     </button>
+                    <button class="btn btn-secondary" id="loadDemoBtn">
+                        <i class="fas fa-database"></i><span>Load Demo Data</span>
+                    </button>
+                    <button class="btn btn-secondary" id="exportBtn">
+                        <i class="fas fa-download"></i><span>Export</span>
+                    </button>
+                    <button class="btn btn-secondary" id="clearDataBtn">
+                        <i class="fas fa-trash"></i><span>Clear Data</span>
+                    </button>
                     <div id="userDisplay"></div>
                 </div>
             </header>
@@ -102,7 +119,122 @@
                     </div>
                 </div>
                 
-                <!-- Other views will be loaded dynamically -->
+                <!-- Projects View -->
+                <div id="projects-view" class="view">
+                    <div class="section-header">
+                        <h2>Projects</h2>
+                        <button class="btn btn-primary" id="addProjectBtn">
+                            <i class="fas fa-plus"></i> Add Project
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="projectsTable">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Status</th>
+                                    <th>Team</th>
+                                    <th>End Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Weekly Tasks View -->
+                <div id="weekly-tasks-view" class="view">
+                    <div class="section-header">
+                        <h2>Weekly Tasks</h2>
+                        <button class="btn btn-primary" id="addWeeklyTaskBtn">
+                            <i class="fas fa-plus"></i> Add Task
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="weeklyTasksTable">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Team</th>
+                                    <th>Week</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasksTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Vulnerabilities View -->
+                <div id="vulnerabilities-view" class="view">
+                    <div class="section-header">
+                        <h2>Vulnerabilities</h2>
+                        <button class="btn btn-primary" id="addVulnerabilityBtn">
+                            <i class="fas fa-plus"></i> Add Vulnerability
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="vulnerabilitiesTable">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Assignment Group</th>
+                                    <th>Due Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vulnTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Risks View -->
+                <div id="risks-view" class="view">
+                    <div class="section-header">
+                        <h2>Risk Register</h2>
+                        <button class="btn btn-primary" id="addRiskBtn">
+                            <i class="fas fa-plus"></i> Add Risk
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="risksTable">
+                            <thead>
+                                <tr>
+                                    <th>Risk Description</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="risksTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Critical Tasks View -->
+                <div id="critical-tasks-view" class="view">
+                    <div class="section-header">
+                        <h2>Critical Tasks</h2>
+                        <button class="btn btn-primary" id="addCriticalTaskBtn">
+                            <i class="fas fa-plus"></i> Add Task
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table" id="criticalTasksTable">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="criticalTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -110,8 +242,8 @@
     <div id="modalContainer" class="modal-container"></div>
     
     <script>
-    // Simple app initialization
-    (function() {
+    // Initialize app when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
         var token = localStorage.getItem('token');
         var user = JSON.parse(localStorage.getItem('user') || 'null');
         window.isOfflineMode = !token || !user || (token && token.startsWith('offline_'));
@@ -119,112 +251,28 @@
         // User display
         if (user) {
             var userDisplay = document.getElementById('userDisplay');
-            userDisplay.innerHTML = '<i class="fas fa-user"></i> ' + (user.fullName || user.username) + 
-                ' <a href="#" onclick="localStorage.removeItem(\'token\');localStorage.removeItem(\'user\');window.location.reload();" style="color:white;margin-left:10px;">Logout</a>';
-        }
-        
-        // Navigation
-        document.querySelectorAll('.nav-item').forEach(function(item) {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                var tab = this.dataset.tab;
-                switchTab(tab);
-            });
-        });
-        
-        function switchTab(tab) {
-            document.querySelectorAll('.nav-item').forEach(function(i) { i.classList.remove('active'); });
-            document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
-            document.getElementById('pageTitle').textContent = tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ');
-            loadTabContent(tab);
-        }
-        
-        function loadTabContent(tab) {
-            var contentArea = document.getElementById('contentArea');
-            var views = {
-                'dashboard': '<div class="dashboard-grid"><div class="dashboard-card"><h3><i class="fas fa-project-diagram"></i> Projects</h3><p class="stat-number" id="projectCount">0</p></div><div class="dashboard-card"><h3><i class="fas fa-shield-alt"></i> Vulnerabilities</h3><p class="stat-number" id="vulnCount">0</p></div><div class="dashboard-card"><h3><i class="fas fa-tasks"></i> Weekly Tasks</h3><p class="stat-number" id="taskCount">0</p></div><div class="dashboard-card"><h3><i class="fas fa-exclamation-triangle"></i> Risks</h3><p class="stat-number" id="riskCount">0</p></div><div class="dashboard-card"><h3><i class="fas fa-exclamation-circle"></i> Critical Tasks</h3><p class="stat-number" id="criticalCount">0</p></div></div>',
-                'projects': '<div class="table-container"><table class="data-table"><thead><tr><th>Title</th><th>Status</th><th>Team</th><th>End Date</th><th>Actions</th></tr></thead><tbody id="projectsTableBody"></tbody></table></div>',
-                'vulnerabilities': '<div class="table-container"><table class="data-table"><thead><tr><th>Title</th><th>Severity</th><th>Status</th><th>Assignment Group</th><th>Due Date</th><th>Actions</th></tr></thead><tbody id="vulnTableBody"></tbody></table></div>',
-                'risks': '<div class="table-container"><table class="data-table"><thead><tr><th>Risk Description</th><th>Status</th><th>Actions</th></tr></thead><tbody id="risksTableBody"></tbody></table></div>',
-                'weekly-tasks': '<div class="table-container"><table class="data-table"><thead><tr><th>Title</th><th>Team</th><th>Week</th><th>Actions</th></tr></thead><tbody id="tasksTableBody"></tbody></table></div>',
-                'critical-tasks': '<div class="table-container"><table class="data-table"><thead><tr><th>Title</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead><tbody id="criticalTableBody"></tbody></table></div>'
-            };
-            contentArea.innerHTML = views[tab] || '<p>Tab not found</p>';
-            loadData(tab);
-        }
-        
-        function loadData(tab) {
-            var endpoint;
-            if (tab === 'dashboard') {
-                endpoint = '/api/dashboard/stats';
-            } else {
-                endpoint = '/api/' + tab.replace('-', '/');
+            if (userDisplay) {
+                userDisplay.innerHTML = '<span class="user-name"><i class="fas fa-user"></i> ' + (user.fullName || user.username) + '</span>' +
+                    '<button class="btn btn-sm" onclick="localStorage.removeItem(\'token\');localStorage.removeItem(\'user\');window.location.href=\'/login\';">Logout</button>';
             }
-            fetch(endpoint, {
-                headers: window.isOfflineMode ? {} : { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
-            })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-                if (tab === 'dashboard') {
-                    updateDashboardStats(data);
-                } else if (Array.isArray(data)) {
-                    updateTable(tab, data);
-                }
-            })
-            .catch(function(e) { console.log('Load data error:', e); });
-        }
-
-        function updateDashboardStats(data) {
-            if (!data) return;
-            var el;
-            if ((el = document.getElementById('projectCount')) && data.projects) el.textContent = data.projects.total || 0;
-            if ((el = document.getElementById('vulnCount')) && data.vulnerabilities) el.textContent = data.vulnerabilities.total || 0;
-            if ((el = document.getElementById('taskCount')) && data.weekly_tasks) el.textContent = data.weekly_tasks.total || 0;
-            if ((el = document.getElementById('riskCount')) && data.risks) el.textContent = data.risks.total || 0;
-            if ((el = document.getElementById('criticalCount')) && data.critical_tasks) el.textContent = data.critical_tasks.total || 0;
         }
         
-        function updateTable(tab, rows) {
-            var tbodyId = {
-                'projects': 'projectsTableBody',
-                'vulnerabilities': 'vulnTableBody',
-                'risks': 'risksTableBody',
-                'weekly-tasks': 'tasksTableBody',
-                'critical-tasks': 'criticalTableBody'
-            }[tab];
-            var tbody = document.getElementById(tbodyId);
-            if (!tbody) return;
-            
-            tbody.innerHTML = rows.map(function(row) {
-                var actions = '<button class="edit-btn" data-id="' + row.id + '" data-tab="' + tab + '"><i class="fas fa-edit"></i></button>' +
-                              '<button class="delete-btn" data-id="' + row.id + '" data-tab="' + tab + '"><i class="fas fa-trash"></i></button>';
-                var cells = tab === 'projects' ? [row.title, row.status, row.assigned_team || '-', row.target_end_date || '-', actions] :
-                           tab === 'vulnerabilities' ? [row.title, row.severity, row.status, row.assignment_group || '-', row.due_date || '-', actions] :
-                           tab === 'risks' ? [row.risk_description, row.status, actions] :
-                           tab === 'weekly-tasks' ? [row.title, row.assigned_team || '-', (row.week_number || '-') + '/' + (row.year || '-'), actions] :
-                           [row.title, row.priority, row.status, actions];
-                return '<tr>' + cells.map(function(c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
-            }).join('');
-        }
-        
-        function updateDashboardCounts(tab, data) {
-            var counts = { 'projectCount': data.length, 'vulnCount': data.length, 'taskCount': data.length, 'riskCount': data.length, 'criticalCount': data.length };
-            Object.keys(counts).forEach(function(id) {
-                var el = document.getElementById(id);
-                if (el) el.textContent = counts[id] || 0;
+        // Initialize managers
+        if (window.dbManager) {
+            window.dbManager.init().then(function() {
+                console.log('Database initialized');
+                
+                // Initialize all managers
+                if (window.projectsManager) window.projectsManager.init();
+                if (window.weeklyTasksManager) window.weeklyTasksManager.init();
+                if (window.vulnerabilitiesManager) window.vulnerabilitiesManager.init();
+                if (window.risksManager) window.risksManager.init();
+                if (window.criticalTasksManager) window.criticalTasksManager.init();
+                if (window.dashboardManager) window.dashboardManager.init();
+                if (window.app) window.app.init();
             });
         }
-        
-        // Add button
-        document.getElementById('addItemBtn').addEventListener('click', function() {
-            alert('Add functionality - implement per tab');
-        });
-        
-        // Initial load
-        loadData('dashboard');
-        
-        console.log('App initialized');
-    })();
+    });
     </script>
 </body>
 </html>
