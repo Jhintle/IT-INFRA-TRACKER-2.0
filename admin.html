@@ -4,294 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Settings - IT Infrastructure Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/main.css">
     <style>
-        .settings-container {
-            max-width: 800px;
-            margin: 2rem auto;
-            padding: 2rem;
-            background: var(--bg-primary);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-md);
-        }
-        
-        .settings-section {
-            margin-bottom: 2rem;
-            padding-bottom: 2rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .settings-section:last-child {
-            border-bottom: none;
-        }
-        
-        .saml-status {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-        
-        .saml-status.enabled {
-            background: var(--success-color);
-            color: white;
-        }
-        
-        .saml-status.disabled {
-            background: var(--secondary-color);
-            color: white;
-        }
-        
-        .config-field {
-            margin-bottom: 1rem;
-        }
-        
-        .config-field label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-        
-        .config-field textarea {
-            width: 100%;
-            min-height: 120px;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            font-family: monospace;
-            font-size: 0.875rem;
-        }
-        
-        .help-text {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-        }
-        
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-        
-        .back-link:hover {
-            text-decoration: underline;
-        }
-        
-        .warning-box {
-            background: rgba(245, 158, 11, 0.1);
-            border-left: 4px solid var(--warning-color);
-            padding: 1rem;
-            margin: 1rem 0;
-            border-radius: 0 var(--radius) var(--radius) 0;
-        }
-        
-        .info-box {
-            background: rgba(6, 182, 212, 0.1);
-            border-left: 4px solid var(--info-color);
-            padding: 1rem;
-            margin: 1rem 0;
-            border-radius: 0 var(--radius) var(--radius) 0;
-        }
+        .settings-container { max-width: 800px; margin: 2rem auto; padding: 2rem; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .settings-section { margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid #e2e8f0; }
+        .settings-section:last-child { border-bottom: none; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #333; }
+        .form-group input, .form-group textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #003B5C; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .btn-primary { background: #003B5C; color: white; }
+        .btn-primary:hover { background: #002a42; }
+        .back-link { display: inline-flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #003B5C; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-    <div class="app">
-        <header class="header">
-            <div class="container">
-                <div class="header-content">
-                    <h1 class="logo">
-                        <img src="assets/sipchem-logo.svg" alt="Sipchem" class="logo-img" onerror="this.style.display='none'">
-                        <span class="logo-text">Admin Settings</span>
-                    </h1>
-                </div>
+    <div class="settings-container">
+        <a href="index.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        <h1>Admin Settings</h1>
+        
+        <div class="settings-section">
+            <h2>SAML Configuration</h2>
+            <div class="form-group">
+                <label>IdP Metadata URL</label>
+                <input type="text" id="samlIdpUrl" placeholder="https://your-idp.com/metadata">
             </div>
-        </header>
-
-        <main class="container">
-            <a href="index.html" class="back-link">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
-
-            <div class="settings-container">
-                <div class="settings-section">
-                    <h2><i class="fas fa-users-cog"></i> SAML Authentication</h2>
-                    <p style="margin: 1rem 0;">
-                        Status: <span class="saml-status disabled" id="samlStatus">Disabled</span>
-                    </p>
-                    
-                    <div class="warning-box">
-                        <strong><i class="fas fa-exclamation-triangle"></i> Important:</strong>
-                        SAML configuration requires environment variables to be set. This page provides guidance on how to configure it for your deployment.
-                    </div>
-
-                    <h3>Configuration Instructions</h3>
-                    
-                    <div class="config-field">
-                        <label>1. SAML Entry Point (Identity Provider URL)</label>
-                        <input type="text" class="form-control" id="samlEntryPoint" placeholder="https://your-idp.com/saml/sso">
-                        <p class="help-text">The URL where users will be redirected to login via your company's identity provider</p>
-                    </div>
-
-                    <div class="config-field">
-                        <label>2. SAML Issuer (Service Provider Entity ID)</label>
-                        <input type="text" class="form-control" id="samlIssuer" placeholder="https://your-app.com">
-                        <p class="help-text">Your application's identifier, usually your domain name</p>
-                    </div>
-
-                    <div class="config-field">
-                        <label>3. SAML Certificate (X.509)</label>
-                        <textarea id="samlCert" placeholder="-----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiUMA0GCSqGSIb3Qa
-... (your certificate here) ...
------END CERTIFICATE-----"></textarea>
-                        <p class="help-text">Paste the X.509 certificate from your Identity Provider here</p>
-                    </div>
-
-                    <div class="info-box">
-                        <strong><i class="fas fa-info-circle"></i> How to enable SAML:</strong>
-                        <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                            <li>Fill in the configuration above</li>
-                            <li>Copy the values</li>
-                            <li>Set them as environment variables in your deployment:</li>
-                        </ol>
-                        <pre style="background: var(--bg-tertiary); padding: 1rem; margin-top: 0.5rem; border-radius: var(--radius); overflow-x: auto;"><code>ENABLE_SAML=true
-SAML_ENTRY_POINT=https://your-idp.com/saml/sso
-SAML_ISSUER=https://your-app.com
-SAML_CERT=-----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAJC1HiIAZAiUMA0GCSqGSIb3Qa
-...
------END CERTIFICATE-----</code></pre>
-                    </div>
-
-                    <button class="btn btn-primary" onclick="testSamlConfig()">
-                        <i class="fas fa-flask"></i> Test Configuration
-                    </button>
-                    
-                    <button class="btn btn-secondary" onclick="downloadEnvFile()">
-                        <i class="fas fa-download"></i> Download .env Template
-                    </button>
-                </div>
-
-                <div class="settings-section">
-                    <h2><i class="fas fa-user-shield"></i> Service Provider Metadata</h2>
-                    <p>Share this metadata with your Identity Provider admin:</p>
-                    
-                    <div class="info-box" id="metadataBox">
-                        <p><strong>Metadata URL:</strong> <code id="metadataUrl">Not available until SAML is enabled</code></p>
-                        <p style="margin-top: 0.5rem;"><strong>ACS URL:</strong> <code id="acsUrl">Not available</code></p>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h2><i class="fas fa-question-circle"></i> Need Help?</h2>
-                    <p>To configure SAML for your organization:</p>
-                    <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-                        <li>Contact your IT/Identity Provider administrator</li>
-                        <li>Provide them with the Service Provider Metadata above</li>
-                        <li>Request the Identity Provider metadata (Entry Point URL and Certificate)</li>
-                        <li>Enter those values above and update your deployment</li>
-                    </ol>
-                </div>
+            <div class="form-group">
+                <label>Entity ID</label>
+                <input type="text" id="samlEntityId" placeholder="it-infrastructure-tracker">
             </div>
-        </main>
+            <button class="btn btn-primary" onclick="saveSAML()">Save SAML Config</button>
+        </div>
+        
+        <div class="settings-section">
+            <h2>Data Management</h2>
+            <button class="btn btn-primary" onclick="clearAllData()" style="background: #dc2626;">Clear All Data</button>
+        </div>
     </div>
-
-    <script src="js/api-client.js"></script>
+    
     <script>
-        // Check if admin
-        async function checkAdmin() {
-            if (!auth.isLoggedIn()) {
-                window.location.href = '/login.html';
-                return;
-            }
-            
-            const user = auth.getUser();
-            if (user.role !== 'admin') {
-                alert('Admin access required');
-                window.location.href = '/index.html';
-            }
+    function saveSAML() {
+        var idpUrl = document.getElementById('samlIdpUrl').value;
+        var entityId = document.getElementById('samlEntityId').value;
+        if (!idpUrl || !entityId) { alert('Please fill all fields'); return; }
+        var config = { idpUrl: idpUrl, entityId: entityId, enabled: true, configuredAt: new Date().toISOString() };
+        localStorage.setItem('samlConfig', JSON.stringify(config));
+        alert('SAML configuration saved!');
+    }
+    
+    function clearAllData() {
+        if (confirm('Clear ALL data? This cannot be undone.')) {
+            localStorage.clear();
+            alert('All data cleared!');
+            window.location.reload();
         }
-        
-        // Load current SAML status
-        async function loadSamlStatus() {
-            try {
-                const response = await fetch('/api/health');
-                const health = await response.json();
-                
-                const samlStatus = document.getElementById('samlStatus');
-                const metadataUrl = document.getElementById('metadataUrl');
-                const acsUrl = document.getElementById('acsUrl');
-                
-                if (health.samlEnabled) {
-                    samlStatus.textContent = 'Enabled';
-                    samlStatus.className = 'saml-status enabled';
-                    metadataUrl.textContent = window.location.origin + '/api/auth/saml/metadata';
-                    acsUrl.textContent = window.location.origin + '/api/auth/saml/callback';
-                } else {
-                    samlStatus.textContent = 'Disabled';
-                    samlStatus.className = 'saml-status disabled';
-                }
-            } catch (error) {
-                console.error('Failed to load SAML status:', error);
-            }
-        }
-        
-        // Test configuration
-        function testSamlConfig() {
-            const entryPoint = document.getElementById('samlEntryPoint').value;
-            const issuer = document.getElementById('samlIssuer').value;
-            const cert = document.getElementById('samlCert').value;
-            
-            if (!entryPoint || !issuer || !cert) {
-                alert('Please fill in all SAML configuration fields');
-                return;
-            }
-            
-            if (!cert.includes('BEGIN CERTIFICATE') || !cert.includes('END CERTIFICATE')) {
-                alert('Certificate format appears invalid. Please include the full PEM format certificate.');
-                return;
-            }
-            
-            alert('Configuration format looks valid! Copy the environment variables below and set them in your deployment.');
-        }
-        
-        // Download .env template
-        function downloadEnvFile() {
-            const entryPoint = document.getElementById('samlEntryPoint').value || 'https://your-idp.com/saml/sso';
-            const issuer = document.getElementById('samlIssuer').value || 'https://your-app.com';
-            const cert = document.getElementById('samlCert').value || '-----BEGIN CERTIFICATE-----\nYOUR_CERTIFICATE_HERE\n-----END CERTIFICATE-----';
-            
-            const envContent = `# SAML Configuration
-ENABLE_SAML=true
-SAML_ENTRY_POINT=${entryPoint}
-SAML_ISSUER=${issuer}
-SAML_CERT=${cert}
-`;
-            
-            const blob = new Blob([envContent], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'saml-config.env';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-        
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            checkAdmin();
-            loadSamlStatus();
-        });
+    }
     </script>
 </body>
 </html>
