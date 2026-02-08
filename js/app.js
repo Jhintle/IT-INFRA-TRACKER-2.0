@@ -36,7 +36,10 @@ class App {
             
             // Initialize clear data functionality
             this.initClearData();
-            
+
+            // Initialize modal backdrop click handler
+            this.initModalBackdrop();
+
             // Show dashboard by default
             this.showTab('dashboard');
             
@@ -277,9 +280,24 @@ class App {
     }
 
     closeModal(modalId) {
+        console.log('Closing modal:', modalId);
         const modalContainer = document.getElementById('modalContainer');
-        modalContainer.innerHTML = '';
-        modalContainer.classList.remove('active');
+        if (modalContainer) {
+            modalContainer.innerHTML = '';
+            modalContainer.classList.remove('active');
+        }
+    }
+
+    initModalBackdrop() {
+        // Close modal when clicking on backdrop
+        const modalContainer = document.getElementById('modalContainer');
+        if (modalContainer) {
+            modalContainer.addEventListener('click', (e) => {
+                if (e.target === modalContainer) {
+                    this.closeModal();
+                }
+            });
+        }
     }
 
     showSuccess(message) { this.showToast(message, 'success'); }
@@ -303,6 +321,7 @@ class App {
     }
 
     showWelcomeMessage() {
+        console.log('Showing welcome message');
         const modalHtml = `
             <div class="modal">
                 <div class="modal-header"><h3 class="modal-title">Welcome!</h3></div>
@@ -314,11 +333,27 @@ class App {
                         <li>Critical Priority Tasks</li>
                     </ul>
                 </div>
-                <div class="modal-footer"><button class="btn btn-primary" onclick="app.closeModal()">Get Started</button></div>
+                <div class="modal-footer"><button class="btn btn-primary" id="welcomeCloseBtn">Get Started</button></div>
             </div>`;
         const container = document.getElementById('modalContainer');
-        container.innerHTML = modalHtml;
-        container.classList.add('active');
+        if (container) {
+            container.innerHTML = modalHtml;
+            container.classList.add('active');
+            
+            // Attach event listener to close button after modal is rendered
+            const closeBtn = document.getElementById('welcomeCloseBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Welcome close button clicked');
+                    this.closeModal();
+                });
+            }
+            
+            // Initialize backdrop click
+            this.initModalBackdrop();
+        }
     }
 
     initDragAndDrop() {}
