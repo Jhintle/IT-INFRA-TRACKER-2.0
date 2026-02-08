@@ -679,3 +679,33 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded - starting initCriticalTasksManager');
     initCriticalTasksManager();
 });
+
+// Retry mechanism if dbManager loads later
+let criticalTasksInitRetries = 0;
+const criticalTasksMaxRetries = 10;
+
+function retryCriticalTasksInit() {
+    if (window.criticalTasksManager && window.criticalTasksManager.initialized) {
+        console.log('CriticalTasksManager already initialized');
+        return;
+    }
+    
+    if (criticalTasksInitRetries >= criticalTasksMaxRetries) {
+        console.error('Failed to initialize CriticalTasksManager after maximum retries');
+        return;
+    }
+    
+    criticalTasksInitRetries++;
+    console.log(`Retrying CriticalTasksManager initialization (attempt ${criticalTasksInitRetries})...`);
+    
+    setTimeout(() => {
+        if (window.dbManager && window.dbManager.isInitialized) {
+            initCriticalTasksManager();
+        } else {
+            retryCriticalTasksInit();
+        }
+    }, 1000);
+}
+
+// Start retry loop
+retryCriticalTasksInit();

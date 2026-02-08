@@ -164,7 +164,9 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
     res.json(row);
   } catch (error) {
     console.error('Update project error:', error);
-    res.status(500).json({ error: 'Failed to update project' });
+    console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
+    res.status(500).json({ error: 'Failed to update project: ' + error.message });
   }
 });
 
