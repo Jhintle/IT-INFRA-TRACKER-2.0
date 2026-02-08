@@ -139,9 +139,24 @@ class ApiClient {
     }
 
     async updateProject(id, project) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiProject = {};
+        
+        Object.keys(project).forEach(key => {
+            if (key === 'target_end_date') {
+                apiProject.targetEndDate = project[key];
+            } else if (key === 'assigned_team') {
+                apiProject.assignedTeam = project[key];
+            } else if (key === 'completion_percentage') {
+                apiProject.completionPercentage = project[key];
+            } else {
+                apiProject[key] = project[key];
+            }
+        });
+        
         return await this.request(`/projects/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(project)
+            body: JSON.stringify(apiProject)
         });
     }
 
@@ -281,6 +296,8 @@ class ApiClient {
                 apiRisk.riskDescription = risk[key];
             } else if (key === 'required_action') {
                 apiRisk.requiredAction = risk[key];
+            } else if (key === 'is_archived') {
+                apiRisk.isArchived = risk[key];
             } else {
                 apiRisk[key] = risk[key];
             }
@@ -311,9 +328,22 @@ class ApiClient {
     }
 
     async updateCriticalTask(id, task) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiTask = {};
+        
+        Object.keys(task).forEach(key => {
+            if (key === 'assigned_team') {
+                apiTask.assignedTeam = task[key];
+            } else if (key === 'is_archived') {
+                apiTask.isArchived = task[key];
+            } else {
+                apiTask[key] = task[key];
+            }
+        });
+        
         return await this.request(`/critical-tasks/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(task)
+            body: JSON.stringify(apiTask)
         });
     }
 

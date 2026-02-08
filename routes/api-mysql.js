@@ -150,9 +150,10 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
     const values = [];
     if (data.title) { fields.push('title = ?'); values.push(data.title); }
     if (data.description) { fields.push('description = ?'); values.push(data.description); }
-    if (data.targetEndDate) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
-    if (data.assignedTeam) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
+    if (data.targetEndDate !== undefined) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
+    if (data.assignedTeam !== undefined) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
     if (data.status) { fields.push('status = ?'); values.push(data.status); }
+    if (typeof data.completionPercentage === 'number') { fields.push('completion_percentage = ?'); values.push(data.completionPercentage); }
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     fields.push('updated_at = CURRENT_TIMESTAMP');
     const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
@@ -688,6 +689,49 @@ router.delete('/risks/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Delete risk error:', err);
     res.status(500).json({ error: 'Failed to delete risk' });
+  }
+});
+
+// Critical Tasks: PUT and DELETE endpoints
+router.put('/critical-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const values = [];
+    if (data.title) { fields.push('title = ?'); values.push(data.title); }
+    if (data.priority) { fields.push('priority = ?'); values.push(data.priority); }
+    if (typeof data.description !== 'undefined') { fields.push('description = ?'); values.push(data.description); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
+    if (data.status) { fields.push('status = ?'); values.push(data.status); }
+    if (typeof data.isArchived !== 'undefined') { fields.push('is_archived = ?'); values.push(data.isArchived); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE critical_tasks SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(id);
+    const [updateResult] = await db.query(sql, values);
+    if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Critical task not found' });
+    const [[row]] = await db.query('SELECT * FROM critical_tasks WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('Update critical task error:', err);
+    res.status(500).json({ error: 'Failed to update critical task' });
+  }
+});
+
+router.delete('/critical-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const [delResult] = await db.query('DELETE FROM critical_tasks WHERE id = ?', [id]);
+    if (delResult.affectedRows === 0) return res.status(404).json({ error: 'Critical task not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete critical task error:', err);
+    res.status(500).json({ error: 'Failed to delete critical task' });
   }
 });
 
