@@ -154,10 +154,13 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
     if (data.assignedTeam !== undefined) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
     if (data.status) { fields.push('status = ?'); values.push(data.status); }
     if (data.completionPercentage !== undefined && data.completionPercentage !== null && data.completionPercentage !== '') { fields.push('completion_percentage = ?'); values.push(parseInt(data.completionPercentage, 10)); }
+    console.log('Project update fields:', fields);
+    console.log('Project update values:', values);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     fields.push('updated_at = CURRENT_TIMESTAMP');
     const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
     values.push(id);
+    console.log('Project update SQL:', sql);
     const [updateResult] = await db.query(sql, values);
     if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Project not found' });
     const [[row]] = await db.query('SELECT * FROM projects WHERE id = ?', [id]);
