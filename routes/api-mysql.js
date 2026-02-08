@@ -132,11 +132,54 @@ router.post('/projects', authenticateToken, async (req, res) => {
         
         // Get the inserted record using LAST_INSERT_ID()
         const [rows] = await db.query('SELECT * FROM projects WHERE id = LAST_INSERT_ID()');
-        res.status(201).json(rows[0]);
+    res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Create project error:', error);
         res.status(500).json({ error: 'Failed to create project' });
     }
+});
+
+// PUT: Update a project by id
+router.put('/projects/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const values = [];
+    if (data.title) { fields.push('title = ?'); values.push(data.title); }
+    if (data.description) { fields.push('description = ?'); values.push(data.description); }
+    if (data.targetEndDate) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
+    if (data.status) { fields.push('status = ?'); values.push(data.status); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(id);
+    const [updateResult] = await db.query(sql, values);
+    if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Project not found' });
+    const [[row]] = await db.query('SELECT * FROM projects WHERE id = ?', [id]);
+    res.json(row);
+  } catch (error) {
+    console.error('Update project error:', error);
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+// DELETE: Delete a project by id
+router.delete('/projects/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const [delResult] = await db.query('DELETE FROM projects WHERE id = ?', [id]);
+    if (delResult.affectedRows === 0) return res.status(404).json({ error: 'Project not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
 });
 
 router.get('/weekly-tasks', authenticateToken, async (req, res) => {
@@ -172,11 +215,54 @@ router.post('/weekly-tasks', authenticateToken, async (req, res) => {
         
         // Get the inserted record
         const [rows] = await db.query('SELECT * FROM weekly_tasks WHERE id = LAST_INSERT_ID()');
-        res.status(201).json(rows[0]);
+    res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Create weekly task error:', error);
         res.status(500).json({ error: 'Failed to create weekly task' });
     }
+});
+
+// PUT: Update a weekly task by id
+router.put('/weekly-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const values = [];
+    if (data.title) { fields.push('title = ?'); values.push(data.title); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
+    if (data.checklist) { fields.push('checklist = ?'); values.push(JSON.stringify(data.checklist)); }
+    if (data.weekNumber) { fields.push('week_number = ?'); values.push(data.weekNumber); }
+    if (data.year) { fields.push('year = ?'); values.push(data.year); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE weekly_tasks SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(id);
+    const [updateResult] = await db.query(sql, values);
+    if (updateResult.affectedRows === 0) return res.status(404).json({ error: 'Weekly task not found' });
+    const [[row]] = await db.query('SELECT * FROM weekly_tasks WHERE id = ?', [id]);
+    res.json(row);
+  } catch (error) {
+    console.error('Update weekly task error:', error);
+    res.status(500).json({ error: 'Failed to update weekly task' });
+  }
+});
+
+// DELETE: Delete a weekly task by id
+router.delete('/weekly-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const [delResult] = await db.query('DELETE FROM weekly_tasks WHERE id = ?', [id]);
+    if (delResult.affectedRows === 0) return res.status(404).json({ error: 'Weekly task not found' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete weekly task error:', error);
+    res.status(500).json({ error: 'Failed to delete weekly task' });
+  }
 });
 
 // Vulnerabilities
