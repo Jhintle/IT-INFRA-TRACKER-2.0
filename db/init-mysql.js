@@ -5,8 +5,7 @@ let pool = null;
 // Only create pool if DB_HOST is configured and not localhost
 if (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
     try {
-        pool = mysql.createPool({
-            host: process.env.DB_HOST,
+        const dbConfig = {
             user: process.env.DB_USER || 'root',
             password: process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'it_infrastructure_tracker',
@@ -15,7 +14,19 @@ if (process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
             queueLimit: 0,
             enableKeepAlive: true,
             keepAliveInitialDelay: 10000
-        });
+        };
+
+        // Check if using Unix socket (Cloud SQL) or TCP host
+        if (process.env.DB_HOST.startsWith('/cloudsql/')) {
+            console.log('Using Cloud SQL Unix socket:', process.env.DB_HOST);
+            dbConfig.socketPath = process.env.DB_HOST;
+        } else {
+            console.log('Using TCP host:', process.env.DB_HOST);
+            dbConfig.host = process.env.DB_HOST;
+            dbConfig.port = process.env.DB_PORT || 3306;
+        }
+
+        pool = mysql.createPool(dbConfig);
 
         pool.on('connection', (connection) => {
             console.log('New MySQL connection established');

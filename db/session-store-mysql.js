@@ -9,8 +9,6 @@ if (useMySQL) {
     try {
         const MySQLStore = require('express-mysql-session')(session);
         const options = {
-            host: process.env.DB_HOST,
-            port: process.env.DB_PORT || 3306,
             user: process.env.DB_USER || 'root',
             password: process.env.DB_PASSWORD || '',
             database: process.env.DB_NAME || 'it_infrastructure_tracker',
@@ -27,6 +25,17 @@ if (useMySQL) {
                 }
             }
         };
+
+        // Check if using Unix socket (Cloud SQL) or TCP host
+        if (process.env.DB_HOST.startsWith('/cloudsql/')) {
+            console.log('Session store using Cloud SQL Unix socket:', process.env.DB_HOST);
+            options.socketPath = process.env.DB_HOST;
+        } else {
+            console.log('Session store using TCP host:', process.env.DB_HOST);
+            options.host = process.env.DB_HOST;
+            options.port = process.env.DB_PORT || 3306;
+        }
+
         sessionStore = new MySQLStore(options);
         console.log('Using MySQL session store');
     } catch (error) {
