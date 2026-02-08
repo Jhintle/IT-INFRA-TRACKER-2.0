@@ -91,8 +91,10 @@ body {
     height: 40px;
     width: auto;
     object-fit: contain;
-    /* Invert colors in light mode to make dark logo visible on dark header */
-    filter: brightness(0) invert(1);
+    /* Add semi-transparent dark background for contrast in both modes */
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 6px 10px;
+    border-radius: 6px;
 }
 
 .logo-text {
