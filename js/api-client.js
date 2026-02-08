@@ -145,6 +145,12 @@ class ApiClient {
         });
     }
 
+    async deleteProject(id) {
+        return await this.request(`/projects/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
     // Weekly Tasks
     async getWeeklyTasks() {
         return await this.request('/weekly-tasks');
@@ -183,6 +189,12 @@ class ApiClient {
         return await this.request(`/weekly-tasks/${id}`, {
             method: 'PUT',
             body: JSON.stringify(apiTask)
+        });
+    }
+
+    async deleteWeeklyTask(id) {
+        return await this.request(`/weekly-tasks/${id}`, {
+            method: 'DELETE'
         });
     }
 

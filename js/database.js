@@ -293,6 +293,12 @@ class DatabaseManager {
             try {
                 let result;
                 switch (table) {
+                    case 'projects':
+                        result = await this.apiClient.deleteProject(id);
+                        break;
+                    case 'weekly_tasks':
+                        result = await this.apiClient.deleteWeeklyTask(id);
+                        break;
                     case 'vulnerabilities':
                         result = await this.apiClient.deleteVulnerability(id);
                         break;
@@ -317,8 +323,20 @@ class DatabaseManager {
         try {
             let result;
             switch (table) {
+                case 'projects':
+                    result = await api.deleteProject(id);
+                    break;
+                case 'weekly_tasks':
+                    result = await api.deleteWeeklyTask(id);
+                    break;
                 case 'vulnerabilities':
                     result = await api.deleteVulnerability(id);
+                    break;
+                case 'risk_register':
+                    result = await api.deleteRisk(id);
+                    break;
+                case 'critical_tasks':
+                    result = await api.deleteCriticalTask(id);
                     break;
                 default:
                     console.warn('Delete not implemented for table:', table);

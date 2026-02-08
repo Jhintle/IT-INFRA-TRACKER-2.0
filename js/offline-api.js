@@ -202,6 +202,13 @@ class OfflineApiClient {
         throw new Error('Project not found');
     }
 
+    async deleteProject(id) {
+        const data = this.getData();
+        data.projects = data.projects.filter(p => p.id != id);
+        this.saveData(data);
+        return { success: true };
+    }
+
     // Weekly Tasks
     async getWeeklyTasks() {
         return this.getData().weekly_tasks;
@@ -233,6 +240,13 @@ class OfflineApiClient {
             return data.weekly_tasks[index];
         }
         throw new Error('Task not found');
+    }
+
+    async deleteWeeklyTask(id) {
+        const data = this.getData();
+        data.weekly_tasks = data.weekly_tasks.filter(t => t.id != id);
+        this.saveData(data);
+        return { success: true };
     }
 
     // Vulnerabilities
