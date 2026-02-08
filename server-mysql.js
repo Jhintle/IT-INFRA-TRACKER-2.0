@@ -142,7 +142,16 @@ try {
             }
         });
     });
-    
+
+    app.get('/index.html', (req, res) => {
+        res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+            if (err) {
+                console.error('Error serving index.html:', err);
+                res.status(404).json({ error: 'Dashboard page not found' });
+            }
+        });
+    });
+
     app.get('/admin', (req, res) => {
         res.sendFile(path.join(__dirname, 'admin.html'), (err) => {
             if (err) {
