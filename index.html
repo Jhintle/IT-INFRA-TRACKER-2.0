@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Infrastructure Activity Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/performance.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="js/offline-api.js"></script>
+    <script src="js/api-client.js"></script>
+    <script>
+        // Check if running in offline/standalone mode
+        (function() {
+            // Check if we have a backend token, if not use offline mode
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+            
+            // Check if token is a real backend token (not offline_token)
+            const isOfflineToken = token && token.startsWith('offline_');
+            
+            // Determine if we should use offline mode
+            // Only use offline mode if no token or explicitly offline token
+            window.isOfflineMode = !token || !user || isOfflineToken;
+            
+            if (window.isOfflineMode) {
+                console.log('Localhost detected - forcing offline mode');
+                console.log('Running in OFFLINE mode - using localStorage');
+                // Set up offline user
+                localStorage.setItem('token', 'offline_token');
+                localStorage.setItem('user', JSON.stringify({
+                    id: 'offline-user',
+                    username: 'localuser',
+                    fullName: 'Local User',
+                    role: 'admin'
+                }));
+                
+                // Add offline mode indicator
+                const offlineIndicator = document.createElement('div');
+                offlineIndicator.style.cssText = 'position:fixed;bottom:10px;right:10px;background:#28a745;color:white;padding:5px 10px;border-radius:5px;z-index:1000;font-size:12px;';
+                offlineIndicator.innerHTML = '<i class="fas fa-wifi-slash"></i> Offline Mode <a href="login.html" style="color:white;margin-left:10px;">Login</a>';
+                document.addEventListener('DOMContentLoaded', () => {
+                    document.body.appendChild(offlineIndicator);
+                });
+            } else {
+                console.log('Running in ONLINE mode - using backend API');
+                // Add user display to header
+                const userDisplay = document.createElement('div');
+                userDisplay.style.cssText = 'position:fixed;bottom:10px;right:10px;background:#003B5C;color:white;padding:5px 10px;border-radius:5px;z-index:1000;';
+                userDisplay.innerHTML = `<i class="fas fa-user"></i> ${user.fullName || user.username} <a href="#" onclick="localStorage.removeItem('token');localStorage.removeItem('user');window.location.reload();" style="color:white;margin-left:10px;">Logout</a>`;
+                document.addEventListener('DOMContentLoaded', () => {
+                    document.body.appendChild(userDisplay);
+                });
+            }
+            
+            console.log('Application initialized - Dashboard loaded');
+        })();
+    </script>
+</head>
+<body>
+    <script>
+        console.log('=== Application initializing ===');
+        
+        // Global functions for inline onclick handlers
+        window.loadDemoDirect = function() {
+            console.log('DIRECT: Load Demo clicked');
+            try {
+                if (!window.dbManager) {
+                    alert('ERROR: Database manager not ready. Please wait a moment and try again.');
+                    console.error('window.dbManager is:', window.dbManager);
+                    return;
+                }
+                if (!window.DemoDataLoader) {
+                    alert('ERROR: DemoDataLoader not loaded. Please refresh the page.');
+                    console.error('window.DemoDataLoader is:', window.DemoDataLoader);
+                    return;
+                }
+                
+                console.log('Creating DemoDataLoader...');
+                var loader = new window.DemoDataLoader(window.dbManager);
+                console.log('Loading demo data...');
+                loader.loadDemoData().then(function(result) {
+                    console.log('Demo data loaded:', result);
+                    alert('Demo data loaded successfully! Check the dashboard.');
+                }).catch(function(err) {
+                    console.error('Error loading demo:', err);
+                    alert('Error loading demo: ' + err.message);
+                });
+            } catch (e) {
+                console.error('Exception:', e);
+                alert('Exception: ' + e.message);
+            }
+        };
+        
+        window.exportDirect = function() {
+            console.log('DIRECT: Export clicked');
+            if (window.app && window.app.exportData) {
+                window.app.exportData();
+            } else {
+                alert('App not ready');
+            }
+        };
+        
+        window.clearDataDirect = function() {
+            console.log('DIRECT: Clear Data clicked');
+            if (confirm('Clear ALL data? This cannot be undone.')) {
+                if (window.app && window.app.clearAllData) {
+                    window.app.clearAllData().then(function() {
+                        alert('All data cleared!');
+                    });
+                } else {
+                    alert('App not ready');
+                }
+            }
+        };
+        
+        window.setupSAML = function() {
+            console.log('SAML Setup clicked');
+            const modalHtml = `
+                <div class="modal" id="samlSetupModal">
+                    <div class="modal-header">
+                        <h3 class="modal-title">SAML Configuration</h3>
+                        <button class="modal-close" onclick="window.closeSAMLModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Identity Provider (IdP) Metadata URL:</label>
+                            <input type="text" id="samlIdpUrl" class="form-control" placeholder="https://your-idp.com/metadata">
+                        </div>
+                        <div class="form-group">
+                            <label>Entity ID:</label>
+                            <input type="text" id="samlEntityId" class="form-control" placeholder="it-infrastructure-tracker">
+                        </div>
+                        <div class="form-group">
+                            <label>ACS URL:</label>
+                            <input type="text" id="samlAcsUrl" class="form-control" value="${window.location.origin}/api/auth/saml/acs" readonly>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius);">
+                            <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                                <i class="fas fa-info-circle"></i> 
+                                Configure your Identity Provider with the ACS URL above. After setup, users can login via SSO.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="window.closeSAMLModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="window.saveSAMLConfig()">
+                            <i class="fas fa-save"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            const modalContainer = document.getElementById('modalContainer');
+            if (modalContainer) {
+                modalContainer.innerHTML = modalHtml;
+                modalContainer.classList.add('active');
+            } else {
+                alert('SAML Setup modal could not be displayed. Please try again.');
+            }
+        };
+        
+        window.closeSAMLModal = function() {
+            const modalContainer = document.getElementById('modalContainer');
+            if (modalContainer) {
+                modalContainer.classList.remove('active');
+                modalContainer.innerHTML = '';
+            }
+        };
+        
+        window.saveSAMLConfig = function() {
+            const idpUrl = document.getElementById('samlIdpUrl').value;
+            const entityId = document.getElementById('samlEntityId').value;
+            
+            if (!idpUrl || !entityId) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Save to localStorage for now (in production, this would go to backend)
+            const samlConfig = {
+                idpUrl: idpUrl,
+                entityId: entityId,
+                acsUrl: window.location.origin + '/api/auth/saml/acs',
+                enabled: true,
+                configuredAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('samlConfig', JSON.stringify(samlConfig));
+            alert('SAML configuration saved successfully!\n\nUsers can now login via SSO using the SAML option on the login page.');
+            window.closeSAMLModal();
+            
+            // Show SSO section on login page for next time
+            localStorage.setItem('ssoEnabled', 'true');
+        };
+        
+        console.log('Global functions defined');
+        
+        // Global action queue system for managers not yet ready
+        window.actionQueue = [];
+        
+        // Helper function to execute action when manager is ready
+        window.execWhenReady = function(managerName, action, context) {
+            console.log('execWhenReady called for:', managerName);
+            
+            if (window[managerName] && window[managerName].initialized !== false) {
+                // Manager is ready, execute immediately
+                console.log(managerName, 'is ready, executing action immediately');
+                try {
+                    action.call(context);
+                } catch (e) {
+                    console.error('Error executing action for', managerName, ':', e);
+                    alert('Error: ' + e.message);
+                }
+            } else {
+                // Manager not ready, queue the action
+                console.log(managerName, 'not ready, queuing action');
+                window.actionQueue.push({
+                    manager: managerName,
+                    action: action,
+                    context: context,
+                    timestamp: Date.now()
+                });
+                
+                // Show temporary feedback
+                var feedback = document.createElement('div');
+                feedback.id = 'loading-feedback-' + managerName;
+                feedback.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,59,92,0.9);color:white;padding:20px 40px;border-radius:8px;z-index:9999;font-size:16px;';
+                feedback.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading ' + managerName.replace('Manager', ' module') + '...';
+                document.body.appendChild(feedback);
+                
+                // Remove feedback after 3 seconds if not processed
+                setTimeout(function() {
+                    var el = document.getElementById('loading-feedback-' + managerName);
+                    if (el) el.remove();
+                }, 3000);
+            }
+        };
+        
+        // Process queued actions
+        window.processActionQueue = function() {
+            if (window.actionQueue.length === 0) return;
+            
+            var processed = [];
+            var stillPending = [];
+            
+            window.actionQueue.forEach(function(item) {
+                if (window[item.manager] && window[item.manager].initialized !== false) {
+                    // Manager is now ready, execute action
+                    console.log('Processing queued action for', item.manager);
+                    try {
+                        item.action.call(item.context);
+                        processed.push(item);
+                        
+                        // Remove loading feedback
+                        var feedback = document.getElementById('loading-feedback-' + item.manager);
+                        if (feedback) feedback.remove();
+                    } catch (e) {
+                        console.error('Error executing queued action for', item.manager, ':', e);
+                        alert('Error: ' + e.message);
+                    }
+                } else {
+                    // Still not ready, check if it's been waiting too long (10 seconds)
+                    if (Date.now() - item.timestamp > 10000) {
+                        console.error('Action for', item.manager, 'timed out waiting');
+                        alert('ERROR: ' + item.manager + ' failed to initialize. Please refresh the page.');
+                        
+                        // Remove loading feedback
+                        var feedback = document.getElementById('loading-feedback-' + item.manager);
+                        if (feedback) feedback.remove();
+                    } else {
+                        stillPending.push(item);
+                    }
+                }
+            });
+            
+            window.actionQueue = stillPending;
+        };
+        
+        // Check queue every 500ms
+        setInterval(window.processActionQueue, 500);
+        
+        // Wrapper functions for button clicks
+        window.showProjectModalSafe = function() {
+            window.execWhenReady('projectsManager', function() {
+                this.showProjectModal();
+            }, window.projectsManager);
+        };
+        
+        window.showWeeklyTaskModalSafe = function() {
+            window.execWhenReady('weeklyTasksManager', function() {
+                this.showWeeklyTaskModal();
+            }, window.weeklyTasksManager);
+        };
+        
+        window.showVulnerabilityModalSafe = function() {
+            window.execWhenReady('vulnerabilitiesManager', function() {
+                this.showVulnerabilityModal();
+            }, window.vulnerabilitiesManager);
+        };
+        
+        window.showRiskModalSafe = function() {
+            window.execWhenReady('risksManager', function() {
+                this.showRiskModal();
+            }, window.risksManager);
+        };
+        
+        window.showCriticalTaskModalSafe = function() {
+            window.execWhenReady('criticalTasksManager', function() {
+                this.showCriticalTaskModal();
+            }, window.criticalTasksManager);
+        };
+        
+        window.handleXlsxImportSafe = function(event) {
+            window.execWhenReady('vulnerabilitiesManager', function() {
+                this.handleXlsxImport(event);
+            }, window.vulnerabilitiesManager);
+        };
+        
+        // Check manager status every 2 seconds
+        setInterval(function() {
+            var status = {
+                dbManager: !!window.dbManager,
+                dbManagerReady: window.dbManager && window.dbManager.isInitialized,
+                app: !!window.app,
+                projectsManager: !!window.projectsManager,
+                projectsManagerReady: !!(window.projectsManager && window.projectsManager.initialized),
+                weeklyTasksManager: !!window.weeklyTasksManager,
+                weeklyTasksManagerReady: !!(window.weeklyTasksManager && window.weeklyTasksManager.initialized),
+                vulnerabilitiesManager: !!window.vulnerabilitiesManager,
+                vulnerabilitiesManagerReady: !!(window.vulnerabilitiesManager && window.vulnerabilitiesManager.initialized),
+                risksManager: !!window.risksManager,
+                risksManagerReady: !!(window.risksManager && window.risksManager.initialized),
+                criticalTasksManager: !!window.criticalTasksManager,
+                criticalTasksManagerReady: !!(window.criticalTasksManager && window.criticalTasksManager.initialized),
+                dashboardManager: !!window.dashboardManager,
+                DemoDataLoader: !!window.DemoDataLoader
+            };
+            console.log('Manager Status:', status);
+        }, 2000);
+    </script>
+    
+    <header class="header">
+        <div class="header-content">
+            <h1 class="logo">
+                <img src="assets/sipchem-logo.svg" alt="Sipchem" class="logo-img">
+                <span class="logo-text">IT Infrastructure Activity Tracker</span>
+            </h1>
+            <div class="header-actions">
+                <button id="loadDemoBtn" class="btn btn-success" onclick="window.loadDemoDirect()">
+                    <i class="fas fa-database"></i> Load Demo
+                </button>
+                <button id="clearDataBtn" class="btn btn-danger" onclick="window.clearDataDirect()">
+                    <i class="fas fa-trash-alt"></i> Clear Data
+                </button>
+                <button id="exportBtn" class="btn btn-secondary" onclick="window.exportDirect()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button id="samlSetupBtn" class="btn btn-secondary" onclick="window.setupSAML()">
+                    <i class="fas fa-key"></i> Setup SAML
+                </button>
+                <button id="themeToggle" class="btn btn-secondary">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav-tabs">
+        <div class="nav-container">
+            <button class="nav-tab active" data-tab="dashboard">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </button>
+            <button class="nav-tab" data-tab="projects">
+                <i class="fas fa-project-diagram"></i> Projects
+            </button>
+            <button class="nav-tab" data-tab="weekly-tasks">
+                <i class="fas fa-calendar-week"></i> Weekly Tasks
+            </button>
+            <button class="nav-tab" data-tab="vulnerabilities">
+                <i class="fas fa-shield-alt"></i> Vulnerabilities
+            </button>
+            <button class="nav-tab" data-tab="risks">
+                <i class="fas fa-exclamation-triangle"></i> Risk Register
+            </button>
+            <button class="nav-tab" data-tab="critical-tasks">
+                <i class="fas fa-fire"></i> Critical Tasks
+            </button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="tab-content active">
+                <div class="dashboard-header">
+                    <h2>Dashboard Overview</h2>
+                    <div class="search-filter">
+                        <input type="text" id="globalSearch" placeholder="Search across all modules...">
+                    </div>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="card-icon projects">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="projectsCount">0</h3>
+                            <p>Active Projects</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon weekly-tasks">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="weeklyTasksCount">0</h3>
+                            <p>Weekly Tasks</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon vulnerabilities">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="vulnerabilitiesCount">0</h3>
+                            <p>Vulnerabilities</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon risks">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="risksCount">0</h3>
+                            <p>Active Risks</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon critical">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="criticalTasksCount">0</h3>
+                            <p>Critical Tasks</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <div class="chart-container">
+                        <h3>Vulnerability Severity Distribution</h3>
+                        <canvas id="vulnerabilityChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Project Status Overview</h3>
+                        <canvas id="projectChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Projects Section -->
+            <section id="projects" class="tab-content">
+                <div class="section-header">
+                    <h2>Projects Management</h2>
+                    <div class="action-buttons">
+                        <button id="exportProjectsBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addProjectBtn" class="btn btn-primary" onclick="window.showProjectModalSafe()">
+                            <i class="fas fa-plus"></i> Add Project
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="projectStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Description</th>
+                                <th>Target End Date</th>
+                                <th>Completion %</th>
+                                <th>Assigned Team</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Weekly Tasks Section -->
+            <section id="weekly-tasks" class="tab-content">
+                <div class="section-header">
+                    <h2>Weekly Tasks</h2>
+                    <div class="action-buttons">
+                        <button id="exportWeeklyTasksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addWeeklyTaskBtn" class="btn btn-primary" onclick="window.showWeeklyTaskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Weekly Task
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Assigned Team</th>
+                                <th>Checklist</th>
+                                <th>Progress</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weeklyTasksTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Vulnerabilities Section -->
+            <section id="vulnerabilities" class="tab-content">
+                <div class="section-header">
+                    <h2>Vulnerability Reports</h2>
+                    <div class="action-buttons">
+                        <input type="file" id="xlsxImportInput" accept=".xlsx,.xls" style="display: none;" onchange="window.handleXlsxImportSafe(event)">
+                        <button id="exportVulnerabilitiesBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="importXlsxBtn" class="btn btn-secondary">
+                            <i class="fas fa-file-import"></i> Import Excel
+                        </button>
+                        <button id="addVulnerabilityBtn" class="btn btn-primary" onclick="window.showVulnerabilityModalSafe()">
+                            <i class="fas fa-plus"></i> Add Vulnerability
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="vulnerabilitySeverityFilter">
+                        <option value="">All Severities</option>
+                        <option value="Low">Low</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <select id="vulnerabilityStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Open">Open</option>
+                        <option value="Due">Due (Near Deadline)</option>
+                        <option value="Breached">Breached (Overdue)</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                    <select id="vulnerabilitySortBy">
+                        <option value="newest">Sort: Newest First</option>
+                        <option value="oldest">Sort: Oldest First</option>
+                        <option value="dueDateAsc">Sort: Due Date (Earliest)</option>
+                        <option value="dueDateDesc">Sort: Due Date (Latest)</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Request Item</th>
+                                <th>Priority</th>
+                                <th>Description</th>
+                                <th>Assignment Group</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vulnerabilitiesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination Controls -->
+                <div class="pagination-container" id="vulnerabilitiesPagination">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">Showing 0-0 of 0 vulnerabilities</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <div class="items-per-page">
+                            <label for="itemsPerPage">Show:</label>
+                            <select id="itemsPerPage">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                        <div class="page-navigation">
+                            <button id="firstPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-double-left"></i>
+                            </button>
+                            <button id="prevPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-left"></i>
+                            </button>
+                            <span class="page-indicator" id="pageIndicator">Page 1 of 1</span>
+                            <button id="nextPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-right"></i>
+                            </button>
+                            <button id="lastPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-double-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Risk Register Section -->
+            <section id="risks" class="tab-content">
+                <div class="section-header">
+                    <h2>Risk Register</h2>
+                    <div class="action-buttons">
+                        <button id="exportRisksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addRiskBtn" class="btn btn-primary" onclick="window.showRiskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Risk
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="riskStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Monitoring">Monitoring</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                    <button id="showArchivedRisks" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i> Show Archived
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Risk Description</th>
+                                <th>Status</th>
+                                <th>Required Action</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risksTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Critical Tasks Section -->
+            <section id="critical-tasks" class="tab-content">
+                <div class="section-header">
+                    <h2>Critical Tasks</h2>
+                    <div class="action-buttons">
+                        <button id="exportCriticalTasksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addCriticalTaskBtn" class="btn btn-primary" onclick="window.showCriticalTaskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Critical Task
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="criticalPriorityFilter">
+                        <option value="">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <select id="criticalStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                    <button id="showArchivedCritical" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i> Show Archived
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Priority</th>
+                                <th>Description</th>
+                                <th>Assigned Team</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="criticalTasksTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal Container -->
+    <div id="modalContainer" class="modal-container"></div>
+
+    <!-- Scripts - Cache busted with version v6 -->
+    <script>console.log('=== LOADING SCRIPTS v6 ===');</script>
+    <script src="https://sql.js.org/dist/sql-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/database.js?v=6"></script>
+    <script src="js/projects.js?v=6"></script>
+    <script src="js/weekly-tasks.js?v=6"></script>
+    <script src="js/vulnerabilities.js?v=6"></script>
+    <script src="js/risks.js?v=6"></script>
+    <script src="js/critical-tasks.js?v=6"></script>
+    <script src="js/dashboard.js?v=6"></script>
+    <script src="js/demo-data.js?v=6"></script>
+    <script src="js/performance-monitor.js?v=6"></script>
+    <script src="js/app.js?v=6"></script>
+    <script>console.log('=== ALL SCRIPTS LOADED v6 ===');</script>
+</body>
+</html>
