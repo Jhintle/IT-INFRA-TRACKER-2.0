@@ -154,18 +154,34 @@
         }
         
         function loadData(tab) {
-            var endpoint = '/api/' + tab.replace('-', '/');
+            var endpoint;
+            if (tab === 'dashboard') {
+                endpoint = '/api/dashboard/stats';
+            } else {
+                endpoint = '/api/' + tab.replace('-', '/');
+            }
             fetch(endpoint, {
                 headers: window.isOfflineMode ? {} : { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
             })
             .then(function(res) { return res.json(); })
             .then(function(data) {
-                if (Array.isArray(data)) {
+                if (tab === 'dashboard') {
+                    updateDashboardStats(data);
+                } else if (Array.isArray(data)) {
                     updateTable(tab, data);
-                    updateDashboardCounts(tab, data);
                 }
             })
             .catch(function(e) { console.log('Load data error:', e); });
+        }
+
+        function updateDashboardStats(data) {
+            if (!data) return;
+            var el;
+            if ((el = document.getElementById('projectCount')) && data.projects) el.textContent = data.projects.total || 0;
+            if ((el = document.getElementById('vulnCount')) && data.vulnerabilities) el.textContent = data.vulnerabilities.total || 0;
+            if ((el = document.getElementById('taskCount')) && data.weekly_tasks) el.textContent = data.weekly_tasks.total || 0;
+            if ((el = document.getElementById('riskCount')) && data.risks) el.textContent = data.risks.total || 0;
+            if ((el = document.getElementById('criticalCount')) && data.critical_tasks) el.textContent = data.critical_tasks.total || 0;
         }
         
         function updateTable(tab, rows) {
