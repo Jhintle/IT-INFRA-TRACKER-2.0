@@ -11,10 +11,465 @@
     <link rel="stylesheet" href="css/performance.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/database.js"></script>
     <script src="js/offline-api.js"></script>
     <script src="js/api-client.js"></script>
+    <script>
+        // Check if running in offline/standalone mode
+        (function() {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+            const isOfflineToken = token && token.startsWith('offline_');
+            window.isOfflineMode = !token || !user || isOfflineToken;
+            
+            if (window.isOfflineMode) {
+                console.log('Running in OFFLINE mode - using localStorage');
+                localStorage.setItem('token', 'offline_token');
+                localStorage.setItem('user', JSON.stringify({
+                    id: 'offline-user',
+                    username: 'localuser',
+                    fullName: 'Local User',
+                    role: 'admin'
+                }));
+            } else {
+                console.log('Running in ONLINE mode - using backend API');
+            }
+        })();
+    </script>
+</head>
+<body>
+    <script>
+        // Global functions for inline onclick handlers
+        window.loadDemoDirect = function() {
+            if (!window.dbManager || !window.DemoDataLoader) {
+                alert('ERROR: Components not ready. Please wait and try again.');
+                return;
+            }
+            var loader = new window.DemoDataLoader(window.dbManager);
+            loader.loadDemoData().then(function() {
+                alert('Demo data loaded successfully!');
+            }).catch(function(err) {
+                alert('Error: ' + err.message);
+            });
+        };
+        
+        window.exportDirect = function() {
+            if (window.app && window.app.exportData) {
+                window.app.exportData();
+            } else {
+                alert('App not ready');
+            }
+        };
+        
+        window.clearDataDirect = function() {
+            if (confirm('Clear ALL data? This cannot be undone.')) {
+                if (window.app && window.app.clearAllData) {
+                    window.app.clearAllData().then(function() {
+                        alert('All data cleared!');
+                    });
+                }
+            }
+        };
+        
+        // Safe wrapper functions
+        window.execWhenReady = function(managerName, action, context) {
+            if (window[managerName] && window[managerName].initialized !== false) {
+                action.call(context);
+            } else {
+                alert(managerName + ' not ready. Please wait...');
+            }
+        };
+        
+        window.showProjectModalSafe = function() {
+            window.execWhenReady('projectsManager', function() { this.showProjectModal(); }, window.projectsManager);
+        };
+        
+        window.showWeeklyTaskModalSafe = function() {
+            window.execWhenReady('weeklyTasksManager', function() { this.showWeeklyTaskModal(); }, window.weeklyTasksManager);
+        };
+        
+        window.showVulnerabilityModalSafe = function() {
+            window.execWhenReady('vulnerabilitiesManager', function() { this.showVulnerabilityModal(); }, window.vulnerabilitiesManager);
+        };
+        
+        window.showRiskModalSafe = function() {
+            window.execWhenReady('risksManager', function() { this.showRiskModal(); }, window.risksManager);
+        };
+        
+        window.showCriticalTaskModalSafe = function() {
+            window.execWhenReady('criticalTasksManager', function() { this.showCriticalTaskModal(); }, window.criticalTasksManager);
+        };
+        
+        window.handleXlsxImportSafe = function(event) {
+            window.execWhenReady('vulnerabilitiesManager', function() { this.handleXlsxImport(event); }, window.vulnerabilitiesManager);
+        };
+    </script>
+    
+    <header class="header">
+        <div class="header-content">
+            <h1 class="logo">
+                <span class="logo-text">IT Infrastructure Activity Tracker</span>
+            </h1>
+            <div class="header-actions">
+                <button id="loadDemoBtn" class="btn btn-success" onclick="window.loadDemoDirect()">
+                    <i class="fas fa-database"></i> Load Demo
+                </button>
+                <button id="clearDataBtn" class="btn btn-danger" onclick="window.clearDataDirect()">
+                    <i class="fas fa-trash-alt"></i> Clear Data
+                </button>
+                <button id="exportBtn" class="btn btn-secondary" onclick="window.exportDirect()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button id="themeToggle" class="btn btn-secondary">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="nav-tabs">
+        <div class="nav-container">
+            <button class="nav-tab active" data-tab="dashboard">
+                <i class="fas fa-tachometer-alt"></i> Dashboard
+            </button>
+            <button class="nav-tab" data-tab="projects">
+                <i class="fas fa-project-diagram"></i> Projects
+            </button>
+            <button class="nav-tab" data-tab="weekly-tasks">
+                <i class="fas fa-calendar-week"></i> Weekly Tasks
+            </button>
+            <button class="nav-tab" data-tab="vulnerabilities">
+                <i class="fas fa-shield-alt"></i> Vulnerabilities
+            </button>
+            <button class="nav-tab" data-tab="risks">
+                <i class="fas fa-exclamation-triangle"></i> Risk Register
+            </button>
+            <button class="nav-tab" data-tab="critical-tasks">
+                <i class="fas fa-fire"></i> Critical Tasks
+            </button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="container">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="tab-content active">
+                <div class="dashboard-header">
+                    <h2>Dashboard Overview</h2>
+                    <div class="search-filter">
+                        <input type="text" id="globalSearch" placeholder="Search across all modules...">
+                    </div>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="card-icon projects">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="projectsCount">0</h3>
+                            <p>Active Projects</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon weekly-tasks">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="weeklyTasksCount">0</h3>
+                            <p>Weekly Tasks</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon vulnerabilities">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="vulnerabilitiesCount">0</h3>
+                            <p>Vulnerabilities</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon risks">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="risksCount">0</h3>
+                            <p>Active Risks</p>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon critical">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 id="criticalTasksCount">0</h3>
+                            <p>Critical Tasks</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-charts">
+                    <div class="chart-container">
+                        <h3>Vulnerability Severity Distribution</h3>
+                        <canvas id="vulnerabilityChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Project Status Overview</h3>
+                        <canvas id="projectChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Projects Section -->
+            <section id="projects" class="tab-content">
+                <div class="section-header">
+                    <h2>Projects Management</h2>
+                    <div class="action-buttons">
+                        <button id="exportProjectsBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addProjectBtn" class="btn btn-primary" onclick="window.showProjectModalSafe()">
+                            <i class="fas fa-plus"></i> Add Project
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="projectStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Description</th>
+                                <th>Target End Date</th>
+                                <th>Completion %</th>
+                                <th>Assigned Team</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Weekly Tasks Section -->
+            <section id="weekly-tasks" class="tab-content">
+                <div class="section-header">
+                    <h2>Weekly Tasks</h2>
+                    <div class="action-buttons">
+                        <button id="exportWeeklyTasksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addWeeklyTaskBtn" class="btn btn-primary" onclick="window.showWeeklyTaskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Weekly Task
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Assigned Team</th>
+                                <th>Checklist</th>
+                                <th>Progress</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weeklyTasksTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Vulnerabilities Section -->
+            <section id="vulnerabilities" class="tab-content">
+                <div class="section-header">
+                    <h2>Vulnerability Reports</h2>
+                    <div class="action-buttons">
+                        <input type="file" id="xlsxImportInput" accept=".xlsx,.xls" style="display: none;" onchange="window.handleXlsxImportSafe(event)">
+                        <button id="exportVulnerabilitiesBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="importXlsxBtn" class="btn btn-secondary">
+                            <i class="fas fa-file-import"></i> Import Excel
+                        </button>
+                        <button id="addVulnerabilityBtn" class="btn btn-primary" onclick="window.showVulnerabilityModalSafe()">
+                            <i class="fas fa-plus"></i> Add Vulnerability
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="vulnerabilitySeverityFilter">
+                        <option value="">All Severities</option>
+                        <option value="Low">Low</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <select id="vulnerabilityStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Open">Open</option>
+                        <option value="Due">Due (Near Deadline)</option>
+                        <option value="Breached">Breached (Overdue)</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                    <select id="vulnerabilitySortBy">
+                        <option value="newest">Sort: Newest First</option>
+                        <option value="oldest">Sort: Oldest First</option>
+                        <option value="dueDateAsc">Sort: Due Date (Earliest)</option>
+                        <option value="dueDateDesc">Sort: Due Date (Latest)</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Request Item</th>
+                                <th>Priority</th>
+                                <th>Description</th>
+                                <th>Assignment Group</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vulnerabilitiesTableBody"></tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination-container" id="vulnerabilitiesPagination">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">Showing 0-0 of 0 vulnerabilities</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <div class="items-per-page">
+                            <label for="itemsPerPage">Show:</label>
+                            <select id="itemsPerPage">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="page-navigation">
+                            <button id="firstPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-double-left"></i>
+                            </button>
+                            <button id="prevPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-left"></i>
+                            </button>
+                            <span class="page-indicator" id="pageIndicator">Page 1 of 1</span>
+                            <button id="nextPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-right"></i>
+                            </button>
+                            <button id="lastPageBtn" class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-angle-double-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Risk Register Section -->
+            <section id="risks" class="tab-content">
+                <div class="section-header">
+                    <h2>Risk Register</h2>
+                    <div class="action-buttons">
+                        <button id="exportRisksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addRiskBtn" class="btn btn-primary" onclick="window.showRiskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Risk
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="riskStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Monitoring">Monitoring</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                    <button id="showArchivedRisks" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i> Show Archived
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Risk Description</th>
+                                <th>Status</th>
+                                <th>Required Action</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="risksTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Critical Tasks Section -->
+            <section id="critical-tasks" class="tab-content">
+                <div class="section-header">
+                    <h2>Critical Tasks</h2>
+                    <div class="action-buttons">
+                        <button id="exportCriticalTasksBtn" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                        <button id="addCriticalTaskBtn" class="btn btn-primary" onclick="window.showCriticalTaskModalSafe()">
+                            <i class="fas fa-plus"></i> Add Critical Task
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-section">
+                    <select id="criticalPriorityFilter">
+                        <option value="">All Priorities</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <select id="criticalStatusFilter">
+                        <option value="">All Status</option>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                    <button id="showArchivedCritical" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i> Show Archived
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Priority</th>
+                                <th>Description</th>
+                                <th>Assigned Team</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="criticalTasksTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="modalContainer" class="modal-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/database.js"></script>
     <script src="js/projects.js"></script>
     <script src="js/weekly-tasks.js"></script>
     <script src="js/vulnerabilities.js"></script>
@@ -23,256 +478,5 @@
     <script src="js/dashboard.js"></script>
     <script src="js/demo-data.js"></script>
     <script src="js/app.js"></script>
-</head>
-<body>
-    <div id="app">
-        <nav class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <i class="fas fa-network-wired"></i>
-                <span>IT Tracker</span>
-            </div>
-            <ul class="nav-menu">
-                <li class="nav-item active" data-tab="dashboard">
-                    <a href="#dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
-                </li>
-                <li class="nav-item" data-tab="projects">
-                    <a href="#projects"><i class="fas fa-project-diagram"></i><span>Projects</span></a>
-                </li>
-                <li class="nav-item" data-tab="weekly-tasks">
-                    <a href="#weekly-tasks"><i class="fas fa-calendar-week"></i><span>Weekly Tasks</span></a>
-                </li>
-                <li class="nav-item" data-tab="vulnerabilities">
-                    <a href="#vulnerabilities"><i class="fas fa-shield-alt"></i><span>Vulnerabilities</span></a>
-                </li>
-                <li class="nav-item" data-tab="risks">
-                    <a href="#risks"><i class="fas fa-exclamation-triangle"></i><span>Risk Register</span></a>
-                </li>
-                <li class="nav-item" data-tab="critical-tasks">
-                    <a href="#critical-tasks"><i class="fas fa-exclamation-circle"></i><span>Critical Tasks</span></a>
-                </li>
-            </ul>
-            <div class="sidebar-footer">
-                <button id="sidebarToggle" class="sidebar-toggle">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-            </div>
-        </nav>
-        
-        <main class="main-content">
-            <header class="main-header">
-                <button id="menuToggle" class="menu-toggle">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <h1 id="pageTitle">Dashboard</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" id="addItemBtn">
-                        <i class="fas fa-plus"></i><span>Add New</span>
-                    </button>
-                    <button class="btn btn-secondary" id="loadDemoBtn">
-                        <i class="fas fa-database"></i><span>Load Demo Data</span>
-                    </button>
-                    <button class="btn btn-secondary" id="exportBtn">
-                        <i class="fas fa-download"></i><span>Export</span>
-                    </button>
-                    <button class="btn btn-secondary" id="clearDataBtn">
-                        <i class="fas fa-trash"></i><span>Clear Data</span>
-                    </button>
-                    <div id="userDisplay"></div>
-                </div>
-            </header>
-            
-            <div class="content-area" id="contentArea">
-                <!-- Dashboard View -->
-                <div id="dashboard-view" class="view active">
-                    <div class="dashboard-grid">
-                        <div class="dashboard-card">
-                            <h3><i class="fas fa-project-diagram"></i> Projects</h3>
-                            <p class="stat-number" id="projectCount">0</p>
-                            <p class="stat-label">Active Projects</p>
-                            <div class="chart-container">
-                                <canvas id="projectChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="dashboard-card">
-                            <h3><i class="fas fa-shield-alt"></i> Vulnerabilities</h3>
-                            <p class="stat-number" id="vulnCount">0</p>
-                            <p class="stat-label">Total Open</p>
-                            <div class="chart-container">
-                                <canvas id="vulnerabilityChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="dashboard-card">
-                            <h3><i class="fas fa-tasks"></i> Weekly Tasks</h3>
-                            <p class="stat-number" id="taskCount">0</p>
-                            <p class="stat-label">This Week</p>
-                        </div>
-                        <div class="dashboard-card">
-                            <h3><i class="fas fa-exclamation-triangle"></i> Risks</h3>
-                            <p class="stat-number" id="riskCount">0</p>
-                            <p class="stat-label">Active Risks</p>
-                        </div>
-                        <div class="dashboard-card">
-                            <h3><i class="fas fa-exclamation-circle"></i> Critical Tasks</h3>
-                            <p class="stat-number" id="criticalCount">0</p>
-                            <p class="stat-label">Open Tasks</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Projects View -->
-                <div id="projects-view" class="view">
-                    <div class="section-header">
-                        <h2>Projects</h2>
-                        <button class="btn btn-primary" id="addProjectBtn">
-                            <i class="fas fa-plus"></i> Add Project
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table" id="projectsTable">
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Status</th>
-                                    <th>Team</th>
-                                    <th>End Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="projectsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Weekly Tasks View -->
-                <div id="weekly-tasks-view" class="view">
-                    <div class="section-header">
-                        <h2>Weekly Tasks</h2>
-                        <button class="btn btn-primary" id="addWeeklyTaskBtn">
-                            <i class="fas fa-plus"></i> Add Task
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table" id="weeklyTasksTable">
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Team</th>
-                                    <th>Week</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tasksTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Vulnerabilities View -->
-                <div id="vulnerabilities-view" class="view">
-                    <div class="section-header">
-                        <h2>Vulnerabilities</h2>
-                        <button class="btn btn-primary" id="addVulnerabilityBtn">
-                            <i class="fas fa-plus"></i> Add Vulnerability
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table" id="vulnerabilitiesTable">
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Severity</th>
-                                    <th>Status</th>
-                                    <th>Assignment Group</th>
-                                    <th>Due Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="vulnTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Risks View -->
-                <div id="risks-view" class="view">
-                    <div class="section-header">
-                        <h2>Risk Register</h2>
-                        <button class="btn btn-primary" id="addRiskBtn">
-                            <i class="fas fa-plus"></i> Add Risk
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table" id="risksTable">
-                            <thead>
-                                <tr>
-                                    <th>Risk Description</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="risksTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Critical Tasks View -->
-                <div id="critical-tasks-view" class="view">
-                    <div class="section-header">
-                        <h2>Critical Tasks</h2>
-                        <button class="btn btn-primary" id="addCriticalTaskBtn">
-                            <i class="fas fa-plus"></i> Add Task
-                        </button>
-                    </div>
-                    <div class="table-container">
-                        <table class="data-table" id="criticalTasksTable">
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Priority</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="criticalTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-    
-    <div id="modalContainer" class="modal-container"></div>
-    
-    <script>
-    // Initialize app when DOM is ready
-    document.addEventListener('DOMContentLoaded', function() {
-        var token = localStorage.getItem('token');
-        var user = JSON.parse(localStorage.getItem('user') || 'null');
-        window.isOfflineMode = !token || !user || (token && token.startsWith('offline_'));
-        
-        // User display
-        if (user) {
-            var userDisplay = document.getElementById('userDisplay');
-            if (userDisplay) {
-                userDisplay.innerHTML = '<span class="user-name"><i class="fas fa-user"></i> ' + (user.fullName || user.username) + '</span>' +
-                    '<button class="btn btn-sm" onclick="localStorage.removeItem(\'token\');localStorage.removeItem(\'user\');window.location.href=\'/login\';">Logout</button>';
-            }
-        }
-        
-        // Initialize managers
-        if (window.dbManager) {
-            window.dbManager.init().then(function() {
-                console.log('Database initialized');
-                
-                // Initialize all managers
-                if (window.projectsManager) window.projectsManager.init();
-                if (window.weeklyTasksManager) window.weeklyTasksManager.init();
-                if (window.vulnerabilitiesManager) window.vulnerabilitiesManager.init();
-                if (window.risksManager) window.risksManager.init();
-                if (window.criticalTasksManager) window.criticalTasksManager.init();
-                if (window.dashboardManager) window.dashboardManager.init();
-                if (window.app) window.app.init();
-            });
-        }
-    });
-    </script>
 </body>
 </html>
