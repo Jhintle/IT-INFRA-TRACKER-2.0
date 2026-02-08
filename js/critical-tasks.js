@@ -150,34 +150,6 @@ class CriticalTasksManager {
         }
     }
 
-            if (this.currentPriorityFilter) {
-                where.push('priority = ?');
-                params.push(this.currentPriorityFilter);
-            }
-
-            if (this.currentStatusFilter) {
-                where.push('status = ?');
-                params.push(this.currentStatusFilter);
-            }
-
-            const whereClause = where.length > 0 ? where.join(' AND ') : '';
-            
-            const tasks = await this.db.select('critical_tasks', whereClause, params, 
-                `CASE 
-                    WHEN priority = 'Critical' THEN 1
-                    WHEN priority = 'High' THEN 2
-                    WHEN priority = 'Medium' THEN 3
-                    WHEN priority = 'Low' THEN 4
-                    ELSE 5
-                END, created_at DESC`
-            );
-            this.renderCriticalTasks(tasks);
-        } catch (error) {
-            console.error('Error loading critical tasks:', error);
-            this.showError('Failed to load critical tasks');
-        }
-    }
-
     renderCriticalTasks(tasks) {
         const tbody = document.getElementById('criticalTasksTableBody');
         
@@ -699,7 +671,7 @@ function retryCriticalTasksInit() {
     console.log(`Retrying CriticalTasksManager initialization (attempt ${criticalTasksInitRetries})...`);
     
     setTimeout(() => {
-        if (window.dbManager && window.dbManager.isInitialized) {
+        if (window.dbManager && window.dbManagerReady) {
             initCriticalTasksManager();
         } else {
             retryCriticalTasksInit();

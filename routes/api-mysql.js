@@ -149,8 +149,16 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
     const fields = [];
     const values = [];
     if (data.title) { fields.push('title = ?'); values.push(data.title); }
-    if (data.description) { fields.push('description = ?'); values.push(data.description); }
-    if (data.targetEndDate !== undefined) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
+    if (data.description !== undefined) { fields.push('description = ?'); values.push(data.description); }
+    // Handle targetEndDate: convert empty string to NULL, otherwise use the value
+    if (data.targetEndDate !== undefined && data.targetEndDate !== null) {
+        if (data.targetEndDate === '') {
+            fields.push('target_end_date = NULL');
+        } else {
+            fields.push('target_end_date = ?');
+            values.push(data.targetEndDate);
+        }
+    }
     if (data.assignedTeam !== undefined) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
     if (data.status) { fields.push('status = ?'); values.push(data.status); }
     if (data.completionPercentage !== undefined && data.completionPercentage !== null && data.completionPercentage !== '') { fields.push('completion_percentage = ?'); values.push(parseInt(data.completionPercentage, 10)); }

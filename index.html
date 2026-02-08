@@ -72,10 +72,15 @@
         
         // Safe wrapper functions
         window.execWhenReady = function(managerName, action, context) {
-            if (window[managerName] && window[managerName].initialized !== false) {
+            const manager = window[managerName];
+            if (manager && manager.initialized === true) {
                 action.call(context);
             } else {
-                alert(managerName + ' not ready. Please wait...');
+                console.warn(managerName + ' not ready yet. Status:', {
+                    exists: !!manager,
+                    initialized: manager ? manager.initialized : 'N/A'
+                });
+                alert(managerName + ' not ready. Please wait a moment and try again...');
             }
         };
         
