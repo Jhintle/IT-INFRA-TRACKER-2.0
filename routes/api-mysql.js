@@ -565,3 +565,175 @@ router.delete('/critical-tasks/clear', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+// Projects: PUT and DELETE endpoints
+router.put('/projects/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const values = [];
+    const map = {
+      title: 'title',
+      description: 'description',
+      targetEndDate: 'target_end_date',
+      assignedTeam: 'assigned_team',
+      status: 'status'
+    };
+    // camel -> snake mapping
+    if (data.title) { fields.push('title = ?'); values.push(data.title); }
+    if (data.description) { fields.push('description = ?'); values.push(data.description); }
+    if (data.targetEndDate) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
+    if (data.status) { fields.push('status = ?'); values.push(data.status); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
+    values.push(id);
+    await db.query(sql, values);
+    const [[row]] = await db.query('SELECT * FROM projects WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('Update project error:', err);
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+router.delete('/projects/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    await db.query('DELETE FROM projects WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete project error:', err);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+// Weekly Tasks: PUT and DELETE
+router.put('/weekly-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const vals = [];
+    if (data.title) { fields.push('title = ?'); vals.push(data.title); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); vals.push(data.assignedTeam); }
+    if (data.checklist) { fields.push('checklist = ?'); vals.push(data.checklist); }
+    if (data.weekNumber) { fields.push('week_number = ?'); vals.push(data.weekNumber); }
+    if (data.year) { fields.push('year = ?'); vals.push(data.year); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE weekly_tasks SET ${fields.join(', ')} WHERE id = ?`;
+    vals.push(id);
+    await db.query(sql, vals);
+    const [[row]] = await db.query('SELECT * FROM weekly_tasks WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('Update weekly task error:', err);
+    res.status(500).json({ error: 'Failed to update weekly task' });
+  }
+});
+
+router.delete('/weekly-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    await db.query('DELETE FROM weekly_tasks WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete weekly task error:', err);
+    res.status(500).json({ error: 'Failed to delete weekly task' });
+  }
+});
+
+// Vulnerabilities: PUT and DELETE
+router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const vals = [];
+    if (data.title) { fields.push('title = ?'); vals.push(data.title); }
+    if (data.severity) { fields.push('severity = ?'); vals.push(data.severity); }
+    if (data.description) { fields.push('description = ?'); vals.push(data.description); }
+    if (data.status) { fields.push('status = ?'); vals.push(data.status); }
+    if (data.dueDate) { fields.push('due_date = ?'); vals.push(data.dueDate); }
+    if (data.assignmentGroup) { fields.push('assignment_group = ?'); vals.push(data.assignmentGroup); }
+    if (data.discoveredDate) { fields.push('discovered_date = ?'); vals.push(data.discoveredDate); }
+    if (data.resolvedDate) { fields.push('resolved_date = ?'); vals.push(data.resolvedDate); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE vulnerabilities SET ${fields.join(', ')} WHERE id = ?`;
+    vals.push(id);
+    await db.query(sql, vals);
+    const [[row]] = await db.query('SELECT * FROM vulnerabilities WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('Update vulnerability error:', err);
+    res.status(500).json({ error: 'Failed to update vulnerability' });
+  }
+});
+
+router.delete('/vulnerabilities/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    await db.query('DELETE FROM vulnerabilities WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete vulnerability error:', err);
+    res.status(500).json({ error: 'Failed to delete vulnerability' });
+  }
+});
+
+// Critical Tasks: PUT and DELETE
+router.put('/critical-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    const data = req.body || {};
+    const fields = [];
+    const vals = [];
+    if (data.title) { fields.push('title = ?'); vals.push(data.title); }
+    if (data.priority) { fields.push('priority = ?'); vals.push(data.priority); }
+    if (data.description) { fields.push('description = ?'); vals.push(data.description); }
+    if (data.assignedTeam) { fields.push('assigned_team = ?'); vals.push(data.assignedTeam); }
+    if (data.status) { fields.push('status = ?'); vals.push(data.status); }
+    if (typeof data.isArchived !== 'undefined') { fields.push('is_archived = ?'); vals.push(data.isArchived); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE critical_tasks SET ${fields.join(', ')} WHERE id = ?`;
+    vals.push(id);
+    await db.query(sql, vals);
+    const [[row]] = await db.query('SELECT * FROM critical_tasks WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('Update critical task error:', err);
+    res.status(500).json({ error: 'Failed to update critical task' });
+  }
+});
+
+router.delete('/critical-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const db = getDb(req);
+    if (!db) return res.status(500).json({ error: 'Database connection not available' });
+    const id = req.params.id;
+    await db.query('DELETE FROM critical_tasks WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete critical task error:', err);
+    res.status(500).json({ error: 'Failed to delete critical task' });
+  }
+});
