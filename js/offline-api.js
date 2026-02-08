@@ -490,13 +490,14 @@ class OfflineApiClient {
         const breached = vulnerabilities.filter(v => v.status === 'Breached').length;
         const resolved = vulnerabilities.filter(v => v.status === 'Resolved').length;
         
-        // Calculate weekly tasks for this week
+        // Calculate weekly tasks for this week (matching backend logic)
         const today = new Date();
-        const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
-        weekStart.setHours(0, 0, 0, 0);
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const pastDays = (today - startOfYear) / 86400000;
+        const currentWeek = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
+        const currentYear = today.getFullYear();
         const thisWeek = data.weekly_tasks.filter(t => {
-            const taskDate = new Date(t.created_at);
-            return taskDate >= weekStart;
+            return t.week_number === currentWeek && t.year === currentYear;
         }).length;
         
         return {

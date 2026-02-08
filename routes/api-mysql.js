@@ -34,6 +34,16 @@ router.get('/dashboard/stats', async (req, res) => {
         const [[projects]] = await db.query('SELECT COUNT(*) as total FROM projects');
         const [[activeProjects]] = await db.query('SELECT COUNT(*) as total FROM projects WHERE status = ?', ['Active']);
         const [[weeklyTasks]] = await db.query('SELECT COUNT(*) as total FROM weekly_tasks');
+        // Get current week number and year
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const pastDays = (now - startOfYear) / 86400000;
+        const currentWeek = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
+        const currentYear = now.getFullYear();
+        const [[weeklyTasksThisWeek]] = await db.query(
+            'SELECT COUNT(*) as total FROM weekly_tasks WHERE week_number = ? AND year = ?', 
+            [currentWeek, currentYear]
+        );
         const [vulnerabilities] = await db.query('SELECT status, COUNT(*) as count FROM vulnerabilities GROUP BY status');
         const [[risks]] = await db.query('SELECT COUNT(*) as total FROM risk_register WHERE is_archived = 0');
         const [[criticalTasks]] = await db.query('SELECT COUNT(*) as total FROM critical_tasks WHERE is_archived = 0');
@@ -78,7 +88,7 @@ router.get('/dashboard/stats', async (req, res) => {
             },
             weekly_tasks: { 
                 total: parseInt(weeklyTasks.total) || 0,
-                thisWeek: parseInt(weeklyTasks.total) || 0
+                thisWeek: parseInt(weeklyTasksThisWeek.total) || 0
             },
             vulnerabilities: {
                 total: vulnStats.total,
