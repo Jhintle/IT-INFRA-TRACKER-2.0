@@ -126,15 +126,29 @@ class CriticalTasksManager {
 
     async loadCriticalTasks() {
         try {
-            let where = [];
-            let params = [];
-
-            // Always filter by archived status
-            if (this.showArchived) {
-                // Show all tasks
+            // Use API directly to support archived parameter
+            let tasks = [];
+            
+            if (window.isOfflineMode) {
+                tasks = await window.offlineApi.getCriticalTasks(this.showArchived);
             } else {
-                where.push('is_archived = 0');
+                tasks = await window.api.getCriticalTasks(this.showArchived);
             }
+            
+            // Apply filters client-side
+            if (this.currentPriorityFilter) {
+                tasks = tasks.filter(t => t.priority === this.currentPriorityFilter);
+            }
+            if (this.currentStatusFilter) {
+                tasks = tasks.filter(t => t.status === this.currentStatusFilter);
+            }
+            
+            this.renderCriticalTasks(tasks);
+        } catch (error) {
+            console.error('Error loading critical tasks:', error);
+            this.showError('Failed to load critical tasks');
+        }
+    }
 
             if (this.currentPriorityFilter) {
                 where.push('priority = ?');

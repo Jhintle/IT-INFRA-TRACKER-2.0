@@ -356,8 +356,11 @@ class OfflineApiClient {
     }
 
     // Critical Tasks
-    async getCriticalTasks() {
+    async getCriticalTasks(archived = false) {
         const data = this.getData();
+        if (archived) {
+            return data.critical_tasks;
+        }
         return data.critical_tasks.filter(t => !t.is_archived);
     }
 

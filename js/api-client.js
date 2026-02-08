@@ -317,8 +317,9 @@ class ApiClient {
     }
 
     // Critical Tasks
-    async getCriticalTasks() {
-        return await this.request('/critical-tasks');
+    async getCriticalTasks(archived = false) {
+        const endpoint = archived ? '/critical-tasks?archived=true' : '/critical-tasks';
+        return await this.request(endpoint);
     }
 
     async createCriticalTask(task) {
