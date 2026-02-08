@@ -151,16 +151,38 @@ class ApiClient {
     }
 
     async createWeeklyTask(task) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiTask = {
+            title: task.title,
+            assignedTeam: task.assigned_team,
+            checklist: task.checklist,
+            weekNumber: task.week_number,
+            year: task.year
+        };
+        
         return await this.request('/weekly-tasks', {
             method: 'POST',
-            body: JSON.stringify(task)
+            body: JSON.stringify(apiTask)
         });
     }
 
     async updateWeeklyTask(id, task) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiTask = {};
+        
+        Object.keys(task).forEach(key => {
+            if (key === 'assigned_team') {
+                apiTask.assignedTeam = task[key];
+            } else if (key === 'week_number') {
+                apiTask.weekNumber = task[key];
+            } else {
+                apiTask[key] = task[key];
+            }
+        });
+        
         return await this.request(`/weekly-tasks/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(task)
+            body: JSON.stringify(apiTask)
         });
     }
 
@@ -225,16 +247,36 @@ class ApiClient {
     }
 
     async createRisk(risk) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiRisk = {
+            riskDescription: risk.risk_description,
+            status: risk.status,
+            requiredAction: risk.required_action
+        };
+        
         return await this.request('/risks', {
             method: 'POST',
-            body: JSON.stringify(risk)
+            body: JSON.stringify(apiRisk)
         });
     }
 
     async updateRisk(id, risk) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiRisk = {};
+        
+        Object.keys(risk).forEach(key => {
+            if (key === 'risk_description') {
+                apiRisk.riskDescription = risk[key];
+            } else if (key === 'required_action') {
+                apiRisk.requiredAction = risk[key];
+            } else {
+                apiRisk[key] = risk[key];
+            }
+        });
+        
         return await this.request(`/risks/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(risk)
+            body: JSON.stringify(apiRisk)
         });
     }
 
