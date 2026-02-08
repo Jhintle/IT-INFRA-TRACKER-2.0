@@ -1,0 +1,207 @@
+const mysql = require('mysql2/promise');
+
+// MySQL connection pool
+const pool = mysql.createPool({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'it_infrastructure_tracker',
+    waitForConnections: true,
+    connectionLimit: 20,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
+});
+
+// Test connection
+pool.on('connection', (connection) => {
+    console.log('New MySQL connection established');
+});
+
+pool.on('error', (err) => {
+    console.error('Unexpected MySQL pool error:', err);
+});
+
+async function initializeDatabase() {
+    const connection = await pool.getConnection();
+    try {
+        console.log('Initializing MySQL database...');
+        
+        // Create users table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS users (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255),
+                full_name VARCHAR(100),
+                role VARCHAR(20) DEFAULT 'user',
+                saml_id VARCHAR(255),
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                last_login TIMESTAMP NULL,
+                INDEX idx_username (username),
+                INDEX idx_email (email)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create projects table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS projects (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                target_end_date DATE,
+                completion_percentage INT DEFAULT 0,
+                assigned_team VARCHAR(255),
+                status VARCHAR(20) DEFAULT 'Active',
+                created_by CHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create weekly_tasks table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS weekly_tasks (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                title VARCHAR(255) NOT NULL,
+                assigned_team VARCHAR(255),
+                checklist JSON,
+                week_number INT,
+                year INT,
+                created_by CHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create vulnerabilities table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS vulnerabilities (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                title VARCHAR(255) NOT NULL,
+                severity VARCHAR(20) DEFAULT 'Moderate',
+                description TEXT,
+                status VARCHAR(20) DEFAULT 'Open',
+                discovered_date DATE DEFAULT (CURRENT_DATE),
+                resolved_date DATE,
+                assignment_group VARCHAR(255),
+                due_date DATE,
+                source VARCHAR(50) DEFAULT 'Manual',
+                created_by CHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                UNIQUE KEY unique_title (title),
+                INDEX idx_severity (severity),
+                INDEX idx_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create risk_register table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS risk_register (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                risk_description TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'Active',
+                required_action TEXT,
+                is_archived TINYINT(1) DEFAULT 0,
+                created_by CHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                INDEX idx_archived (is_archived)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create critical_tasks table
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS critical_tasks (
+                id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+                title VARCHAR(255) NOT NULL,
+                priority VARCHAR(20) DEFAULT 'Medium',
+                description TEXT,
+                assigned_team VARCHAR(255),
+                status VARCHAR(20) DEFAULT 'Open',
+                is_archived TINYINT(1) DEFAULT 0,
+                created_by CHAR(36),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                INDEX idx_archived (is_archived)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        // Create session table for express-mysql-session
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id VARCHAR(128) NOT NULL PRIMARY KEY,
+                expires INT UNSIGNED NOT NULL,
+                data MEDIUMTEXT,
+                INDEX idx_expires (expires)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        `);
+
+        console.log('All MySQL tables created successfully');
+        
+        // Create default admin user if not exists
+        const [adminRows] = await connection.execute(
+            'SELECT id FROM users WHERE username = ?',
+            ['admin']
+        );
+        
+        if (adminRows.length === 0) {
+            console.log('Creating default admin user...');
+            const bcrypt = require('bcryptjs');
+            const passwordHash = await bcrypt.hash('admin', 10);
+            await connection.execute(
+                `INSERT INTO users (id, username, email, password_hash, full_name, role, is_active) 
+                 VALUES (UUID(), ?, ?, ?, ?, ?, ?)`,
+                ['admin', 'admin@local', passwordHash, 'Administrator', 'admin', 1]
+            );
+            console.log('Default admin user created');
+        }
+        
+    } catch (error) {
+        console.error('Database initialization error:', error);
+        throw error;
+    } finally {
+        connection.release();
+    }
+    
+    // Return the pool for use in server
+    return pool;
+}
+
+// Helper function for queries with MySQL syntax
+async function query(sql, params = []) {
+    try {
+        // Convert PostgreSQL $1, $2 syntax to MySQL ? syntax
+        let mysqlSql = sql.replace(/\$(\d+)/g, '?');
+        
+        // Convert PostgreSQL RETURNING clause (MySQL doesn't support it the same way)
+        if (mysqlSql.toLowerCase().includes('returning')) {
+            // Remove RETURNING clause for INSERT/UPDATE
+            mysqlSql = mysqlSql.replace(/\s+RETURNING\s+.+$/i, '');
+        }
+        
+        const [rows] = await pool.execute(mysqlSql, params);
+        
+        // Return in PostgreSQL-compatible format (rows array)
+        return { rows: Array.isArray(rows) ? rows : [rows] };
+    } catch (error) {
+        console.error('MySQL query error:', error);
+        throw error;
+    }
+}
+
+module.exports = {
+    pool,
+    initializeDatabase,
+    query
+};
