@@ -111,24 +111,20 @@ class RisksManager {
 
     async loadRisks() {
         try {
-            let where = [];
-            let params = [];
-
-            // Always filter by archived status
-            if (this.showArchived) {
-                // Show all risks
-            } else {
-                where.push('is_archived = 0');
-            }
-
-            if (this.currentStatusFilter) {
-                where.push('status = ?');
-                params.push(this.currentStatusFilter);
-            }
-
-            const whereClause = where.length > 0 ? where.join(' AND ') : '';
+            // Use API directly to support archived parameter
+            let risks = [];
             
-            const risks = await this.db.select('risk_register', whereClause, params, 'created_at DESC');
+            if (window.isOfflineMode) {
+                risks = await window.offlineApi.getRisks(this.showArchived);
+            } else {
+                risks = await window.api.getRisks(this.showArchived);
+            }
+            
+            // Apply status filter client-side if needed
+            if (this.currentStatusFilter) {
+                risks = risks.filter(r => r.status === this.currentStatusFilter);
+            }
+            
             this.renderRisks(risks);
         } catch (error) {
             console.error('Error loading risks:', error);

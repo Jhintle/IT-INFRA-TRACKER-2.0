@@ -269,8 +269,9 @@ class ApiClient {
     }
 
     // Risks
-    async getRisks() {
-        return await this.request('/risks');
+    async getRisks(archived = false) {
+        const endpoint = archived ? '/risks?archived=true' : '/risks';
+        return await this.request(endpoint);
     }
 
     async createRisk(risk) {

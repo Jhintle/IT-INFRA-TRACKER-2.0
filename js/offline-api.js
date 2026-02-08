@@ -311,8 +311,11 @@ class OfflineApiClient {
     }
 
     // Risks
-    async getRisks() {
+    async getRisks(archived = false) {
         const data = this.getData();
+        if (archived) {
+            return data.risk_register;
+        }
         return data.risk_register.filter(r => !r.is_archived);
     }
 

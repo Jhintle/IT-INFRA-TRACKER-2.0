@@ -153,7 +153,7 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
     if (data.targetEndDate !== undefined) { fields.push('target_end_date = ?'); values.push(data.targetEndDate); }
     if (data.assignedTeam !== undefined) { fields.push('assigned_team = ?'); values.push(data.assignedTeam); }
     if (data.status) { fields.push('status = ?'); values.push(data.status); }
-    if (typeof data.completionPercentage === 'number') { fields.push('completion_percentage = ?'); values.push(data.completionPercentage); }
+    if (typeof data.completionPercentage === 'number' || data.completionPercentage === 0) { fields.push('completion_percentage = ?'); values.push(data.completionPercentage); }
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     fields.push('updated_at = CURRENT_TIMESTAMP');
     const sql = `UPDATE projects SET ${fields.join(', ')} WHERE id = ?`;
@@ -443,7 +443,18 @@ router.get('/risks', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Database connection not available' });
         }
 
-        const [rows] = await db.query('SELECT * FROM risk_register WHERE is_archived = 0 ORDER BY created_at DESC');
+        // Support archived query parameter
+        const showArchived = req.query.archived === 'true' || req.query.archived === '1';
+        let sql = 'SELECT * FROM risk_register';
+        let params = [];
+        
+        if (!showArchived) {
+            sql += ' WHERE is_archived = 0';
+        }
+        
+        sql += ' ORDER BY created_at DESC';
+        
+        const [rows] = await db.query(sql, params);
         res.json(rows);
     } catch (error) {
         console.error('Risks error:', error);
