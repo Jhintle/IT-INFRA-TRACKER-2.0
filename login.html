@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - IT Infrastructure Activity Tracker</title>
+    <title>Login - IT Infrastructure Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -37,7 +36,6 @@
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 1rem;
-            transition: border-color 0.2s;
         }
         .form-group input:focus { outline: none; border-color: #003B5C; }
         .btn {
@@ -50,7 +48,6 @@
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
             margin-bottom: 0.75rem;
         }
         .btn:hover { background: #002a42; }
@@ -126,9 +123,14 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: username, password: password })
         })
-        .then(function(res) { return res.json(); })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Login failed');
+            }
+            return response.json();
+        })
         .then(function(data) {
-            if (res.ok && data.token) {
+            if (data.token) {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
                 document.cookie = 'auth_token=Bearer ' + data.token + '; path=/; SameSite=Lax; Max-Age=86400';
@@ -163,7 +165,6 @@
         if (e.key === 'Enter') document.getElementById('loginButton').click();
     });
     
-    // Check SAML config
     if (!localStorage.getItem('samlConfig')) {
         document.getElementById('ssoButton').style.display = 'none';
     }

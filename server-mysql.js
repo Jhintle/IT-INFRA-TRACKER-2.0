@@ -27,16 +27,7 @@ try {
 
     // Security middleware
     app.use(helmet({
-        contentSecurityPolicy: {
-            directives: {
-                defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.sheetjs.com", "https://cdnjs.cloudflare.com"],
-                fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
-                imgSrc: ["'self'", "data:", "blob:"],
-                connectSrc: ["'self'"],
-            },
-        },
+        contentSecurityPolicy: false,
     }));
 
     app.use(cors({
@@ -51,7 +42,7 @@ try {
     app.use((req, res, next) => {
         res.setHeader(
             'Content-Security-Policy',
-            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/chart.js https://sql.js.org/dist; script-src-elem 'self' https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/chart.js https://sql.js.org/dist;"
+            "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.sheetjs.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://sql.js.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self';"
         );
         next();
     });
