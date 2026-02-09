@@ -174,7 +174,7 @@ class RisksManager {
                         ${risk.status || 'Open'}
                     </span>
                 </td>
-                <td>${this.escapeHtml(risk.mitigation ? risk.mitigation.substring(0, 50) + (risk.mitigation.length > 50 ? '...' : '') : '-')}</td>
+                <td>${this.escapeHtml((risk.mitigation || risk.required_action) ? (risk.mitigation || risk.required_action).substring(0, 50) + ((risk.mitigation || risk.required_action).length > 50 ? '...' : '') : '-')}</td>
                 <td>
                     <div class="action-buttons">
                         <button class="edit-btn risk-edit-btn" data-id="${risk.id}" title="Edit">

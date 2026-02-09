@@ -130,15 +130,17 @@ async function initializeDatabase() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
 
-        // Create risk_register table
+        // Create risk_register table (legacy columns included for migration)
         await connection.execute(`
             CREATE TABLE IF NOT EXISTS risk_register (
                 id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-                risk_name VARCHAR(255) NOT NULL,
+                risk_name VARCHAR(255),
+                risk_description TEXT,
                 impact VARCHAR(20) DEFAULT 'Medium',
                 owner VARCHAR(255),
                 status VARCHAR(20) DEFAULT 'Open',
                 mitigation TEXT,
+                required_action TEXT,
                 is_archived TINYINT(1) DEFAULT 0,
                 created_by CHAR(36),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +150,28 @@ async function initializeDatabase() {
                 INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
+
+        // Migration: Add new columns if they don't exist (for existing tables)
+        const addColumnIfNotExists = async (columnName, columnDef) => {
+            try {
+                await connection.execute(`ALTER TABLE risk_register ADD COLUMN ${columnName} ${columnDef}`);
+                console.log(`Added column ${columnName} to risk_register`);
+            } catch (err) {
+                if (err.message && err.message.includes('Duplicate column')) {
+                    console.log(`Column ${columnName} already exists`);
+                } else {
+                    console.log(`Column ${columnName} check:`, err.message);
+                }
+            }
+        };
+
+        await addColumnIfNotExists('risk_name', 'VARCHAR(255)');
+        await addColumnIfNotExists('risk_description', 'TEXT');
+        await addColumnIfNotExists('impact', "VARCHAR(20) DEFAULT 'Medium'");
+        await addColumnIfNotExists('owner', 'VARCHAR(255)');
+        await addColumnIfNotExists('mitigation', 'TEXT');
+        await addColumnIfNotExists('required_action', 'TEXT');
+        console.log('Risk register table migration completed');
 
         // Create critical_tasks table
         await connection.execute(`
