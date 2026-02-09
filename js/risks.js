@@ -248,7 +248,7 @@ class RisksManager {
                                 <label for="riskStatus">Status</label>
                                 <select id="riskStatus" class="form-control">
                                     <option value="Open" ${(risk?.status || 'Open') === 'Open' ? 'selected' : ''}>Open</option>
-                                    <option value="Pending" ${risk?.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                    <option value="Monitoring" ${risk?.status === 'Monitoring' ? 'selected' : ''}>Monitoring</option>
                                     <option value="Closed" ${risk?.status === 'Closed' ? 'selected' : ''}>Closed</option>
                                 </select>
                             </div>
@@ -412,11 +412,11 @@ class RisksManager {
     getStatusClass(status) {
         switch (status) {
             case 'Open': return 'danger';
-            case 'Pending': return 'warning';
+            case 'Monitoring': return 'warning';
             case 'Closed': return 'success';
             // Legacy support
             case 'Active': return 'danger';
-            case 'Monitoring': return 'warning';
+            case 'Pending': return 'warning';
             case 'Resolved': return 'success';
             default: return 'secondary';
         }
