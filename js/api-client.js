@@ -132,9 +132,19 @@ class ApiClient {
     }
 
     async createProject(project) {
+        // Convert snake_case to camelCase for API compatibility
+        const apiProject = {
+            title: project.title,
+            description: project.description,
+            targetEndDate: project.target_end_date,
+            assignedTeam: project.assigned_team,
+            status: project.status,
+            completionPercentage: project.completion_percentage
+        };
+        
         return await this.request('/projects', {
             method: 'POST',
-            body: JSON.stringify(project)
+            body: JSON.stringify(apiProject)
         });
     }
 

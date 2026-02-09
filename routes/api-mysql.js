@@ -152,13 +152,13 @@ router.post('/projects', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Database connection not available' });
         }
 
-        const { title, description, targetEndDate, assignedTeam, status } = req.body;
+        const { title, description, targetEndDate, assignedTeam, status, completionPercentage } = req.body;
         const userId = req.user.id;
 
         // MySQL: Insert without RETURNING, then select the inserted record
         await db.query(
-            'INSERT INTO projects (title, description, target_end_date, assigned_team, status, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-            [title, description, targetEndDate, assignedTeam, status, userId]
+            'INSERT INTO projects (title, description, target_end_date, assigned_team, status, completion_percentage, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [title, description, targetEndDate, assignedTeam, status, completionPercentage || 0, userId]
         );
         
         // Get the inserted record using LAST_INSERT_ID()
