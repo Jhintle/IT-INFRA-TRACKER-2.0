@@ -277,9 +277,11 @@ class ApiClient {
     async createRisk(risk) {
         // Convert snake_case to camelCase for API compatibility
         const apiRisk = {
-            riskDescription: risk.risk_description,
+            riskName: risk.risk_name,
+            impact: risk.impact,
+            owner: risk.owner,
             status: risk.status,
-            requiredAction: risk.required_action
+            mitigation: risk.mitigation
         };
         
         return await this.request('/risks', {
@@ -293,10 +295,10 @@ class ApiClient {
         const apiRisk = {};
         
         Object.keys(risk).forEach(key => {
-            if (key === 'risk_description') {
-                apiRisk.riskDescription = risk[key];
-            } else if (key === 'required_action') {
-                apiRisk.requiredAction = risk[key];
+            if (key === 'risk_name') {
+                apiRisk.riskName = risk[key];
+            } else if (key === 'mitigation') {
+                apiRisk.mitigation = risk[key];
             } else if (key === 'is_archived') {
                 apiRisk.isArchived = risk[key];
             } else {

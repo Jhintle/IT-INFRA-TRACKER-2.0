@@ -492,21 +492,31 @@ router.post('/risks', authenticateToken, async (req, res) => {
             return res.status(500).json({ error: 'Database connection not available' });
         }
 
-        const { riskDescription, status, requiredAction } = req.body;
+        const { riskName, impact, owner, status, mitigation } = req.body;
         const userId = req.user.id;
+
+        // Validate required fields
+        if (!riskName) {
+            return res.status(400).json({ error: 'Risk name is required' });
+        }
 
         // MySQL: Insert without RETURNING
         await db.query(
-            'INSERT INTO risk_register (risk_description, status, required_action, created_by) VALUES (?, ?, ?, ?)',
-            [riskDescription, status, requiredAction, userId]
+            'INSERT INTO risk_register (risk_name, impact, owner, status, mitigation, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            [riskName, impact || 'Medium', owner, status || 'Open', mitigation, userId]
         );
         
         // Get the inserted record
         const [rows] = await db.query('SELECT * FROM risk_register WHERE id = LAST_INSERT_ID()');
+        
+        if (!rows || rows.length === 0) {
+            return res.status(500).json({ error: 'Failed to retrieve created risk' });
+        }
+        
         res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Create risk error:', error);
-        res.status(500).json({ error: 'Failed to create risk' });
+        res.status(500).json({ error: 'Failed to create risk: ' + error.message });
     }
 });
 
@@ -711,9 +721,11 @@ router.put('/risks/:id', authenticateToken, async (req, res) => {
     const data = req.body || {};
     const fields = [];
     const values = [];
-    if (data.riskDescription) { fields.push('risk_description = ?'); values.push(data.riskDescription); }
+    if (data.riskName) { fields.push('risk_name = ?'); values.push(data.riskName); }
+    if (data.impact) { fields.push('impact = ?'); values.push(data.impact); }
+    if (typeof data.owner !== 'undefined') { fields.push('owner = ?'); values.push(data.owner); }
     if (data.status) { fields.push('status = ?'); values.push(data.status); }
-    if (typeof data.requiredAction !== 'undefined') { fields.push('required_action = ?'); values.push(data.requiredAction); }
+    if (typeof data.mitigation !== 'undefined') { fields.push('mitigation = ?'); values.push(data.mitigation); }
     if (typeof data.isArchived !== 'undefined') { fields.push('is_archived = ?'); values.push(data.isArchived); }
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     fields.push('updated_at = CURRENT_TIMESTAMP');

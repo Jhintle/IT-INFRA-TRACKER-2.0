@@ -159,16 +159,22 @@ class RisksManager {
             <tr class="${risk.is_archived ? 'archived-row' : ''}">
                 <td>
                     <div>
-                        <strong>${this.escapeHtml(risk.risk_description)}</strong>
+                        <strong>${this.escapeHtml(risk.risk_name || risk.risk_description || 'Unnamed Risk')}</strong>
                         ${risk.is_archived ? '<br><small class="text-muted"><i class="fas fa-archive"></i> Archived</small>' : ''}
                     </div>
                 </td>
                 <td>
-                    <span class="badge badge-${this.getStatusClass(risk.status)}">
-                        ${risk.status || 'Active'}
+                    <span class="badge badge-${this.getImpactClass(risk.impact)}">
+                        ${risk.impact || 'Medium'}
                     </span>
                 </td>
-                <td>${this.escapeHtml(risk.required_action || '-')}</td>
+                <td>${this.escapeHtml(risk.owner || '-')}</td>
+                <td>
+                    <span class="badge badge-${this.getStatusClass(risk.status)}">
+                        ${risk.status || 'Open'}
+                    </span>
+                </td>
+                <td>${this.escapeHtml(risk.mitigation ? risk.mitigation.substring(0, 50) + (risk.mitigation.length > 50 ? '...' : '') : '-')}</td>
                 <td>
                     <div class="action-buttons">
                         <button class="edit-btn risk-edit-btn" data-id="${risk.id}" title="Edit">
@@ -222,24 +228,43 @@ class RisksManager {
                 <div class="modal-body">
                     <form id="riskForm">
                         <div class="form-group">
-                            <label for="riskDescription">Risk Description *</label>
-                            <textarea id="riskDescription" class="form-control" rows="3" required 
-                                      placeholder="Describe the risk in detail">${this.escapeHtml(risk?.risk_description || '')}</textarea>
+                            <label for="riskName">Risk Name *</label>
+                            <input type="text" id="riskName" class="form-control" required 
+                                   placeholder="Enter risk name" 
+                                   value="${this.escapeHtml(risk?.risk_name || risk?.risk_description || '')}">
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group form-group-half">
+                                <label for="riskImpact">Impact</label>
+                                <select id="riskImpact" class="form-control">
+                                    <option value="Low" ${(risk?.impact || 'Medium') === 'Low' ? 'selected' : ''}>Low</option>
+                                    <option value="Medium" ${(risk?.impact || 'Medium') === 'Medium' ? 'selected' : ''}>Medium</option>
+                                    <option value="High" ${(risk?.impact || 'Medium') === 'High' ? 'selected' : ''}>High</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group form-group-half">
+                                <label for="riskStatus">Status</label>
+                                <select id="riskStatus" class="form-control">
+                                    <option value="Open" ${(risk?.status || 'Open') === 'Open' ? 'selected' : ''}>Open</option>
+                                    <option value="Pending" ${risk?.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                    <option value="Closed" ${risk?.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="riskStatus">Status</label>
-                            <select id="riskStatus" class="form-control">
-                                <option value="Active" ${risk?.status === 'Active' ? 'selected' : ''}>Active</option>
-                                <option value="Monitoring" ${risk?.status === 'Monitoring' ? 'selected' : ''}>Monitoring</option>
-                                <option value="Resolved" ${risk?.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
-                            </select>
+                            <label for="riskOwner">Owner</label>
+                            <input type="text" id="riskOwner" class="form-control" 
+                                   placeholder="Enter risk owner name" 
+                                   value="${this.escapeHtml(risk?.owner || '')}">
                         </div>
                         
                         <div class="form-group">
-                            <label for="riskAction">Required Action</label>
-                            <textarea id="riskAction" class="form-control" rows="3" 
-                                      placeholder="Describe the required actions to mitigate or address this risk">${this.escapeHtml(risk?.required_action || '')}</textarea>
+                            <label for="riskMitigation">Mitigation</label>
+                            <textarea id="riskMitigation" class="form-control" rows="3" 
+                                      placeholder="Describe mitigation strategies">${this.escapeHtml(risk?.mitigation || risk?.required_action || '')}</textarea>
                         </div>
                         
                         <div class="form-group">
@@ -273,25 +298,27 @@ class RisksManager {
         document.getElementById('riskModalCancel').addEventListener('click', () => this.closeModal());
         document.getElementById('riskModalSave').addEventListener('click', () => this.saveRisk(riskId));
 
-        // Focus on description input
+        // Focus on risk name input
         setTimeout(() => {
-            const descInput = document.getElementById('riskDescription');
-            if (descInput) descInput.focus();
+            const nameInput = document.getElementById('riskName');
+            if (nameInput) nameInput.focus();
         }, 100);
     }
 
     async saveRisk(riskId) {
         try {
             const formData = {
-                risk_description: document.getElementById('riskDescription').value.trim(),
+                risk_name: document.getElementById('riskName').value.trim(),
+                impact: document.getElementById('riskImpact').value,
+                owner: document.getElementById('riskOwner').value.trim(),
                 status: document.getElementById('riskStatus').value,
-                required_action: document.getElementById('riskAction').value.trim(),
+                mitigation: document.getElementById('riskMitigation').value.trim(),
                 is_archived: document.getElementById('riskArchived').checked ? 1 : 0
             };
 
             // Validation
-            if (!formData.risk_description) {
-                this.showError('Risk description is required');
+            if (!formData.risk_name) {
+                this.showError('Risk name is required');
                 return;
             }
 
@@ -384,9 +411,22 @@ class RisksManager {
 
     getStatusClass(status) {
         switch (status) {
+            case 'Open': return 'danger';
+            case 'Pending': return 'warning';
+            case 'Closed': return 'success';
+            // Legacy support
             case 'Active': return 'danger';
             case 'Monitoring': return 'warning';
             case 'Resolved': return 'success';
+            default: return 'secondary';
+        }
+    }
+
+    getImpactClass(impact) {
+        switch (impact) {
+            case 'High': return 'danger';
+            case 'Medium': return 'warning';
+            case 'Low': return 'success';
             default: return 'secondary';
         }
     }

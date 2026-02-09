@@ -134,15 +134,18 @@ async function initializeDatabase() {
         await connection.execute(`
             CREATE TABLE IF NOT EXISTS risk_register (
                 id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-                risk_description TEXT NOT NULL,
-                status VARCHAR(20) DEFAULT 'Active',
-                required_action TEXT,
+                risk_name VARCHAR(255) NOT NULL,
+                impact VARCHAR(20) DEFAULT 'Medium',
+                owner VARCHAR(255),
+                status VARCHAR(20) DEFAULT 'Open',
+                mitigation TEXT,
                 is_archived TINYINT(1) DEFAULT 0,
                 created_by CHAR(36),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-                INDEX idx_archived (is_archived)
+                INDEX idx_archived (is_archived),
+                INDEX idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
 
