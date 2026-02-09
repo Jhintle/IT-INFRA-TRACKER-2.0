@@ -913,3 +913,116 @@ textarea.form-control {
         justify-content: center;
     }
 }
+
+/* Vulnerability Status Section */
+.vulnerability-status-section {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.vulnerability-status-section h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+}
+
+.vulnerability-status-section h3 i {
+    margin-right: 0.5rem;
+    color: var(--primary-color);
+}
+
+.vulnerability-status-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.status-card {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem;
+    border-radius: 10px;
+    background: var(--bg-primary);
+    border-left: 4px solid;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.status-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.status-card.open {
+    border-left-color: #e74c3c;
+}
+
+.status-card.due {
+    border-left-color: #f39c12;
+}
+
+.status-card.breached {
+    border-left-color: #c0392b;
+}
+
+.status-card.resolved {
+    border-left-color: #27ae60;
+}
+
+.status-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+}
+
+.status-card.open .status-icon {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+
+.status-card.due .status-icon {
+    background: rgba(243, 156, 18, 0.15);
+    color: #f39c12;
+}
+
+.status-card.breached .status-icon {
+    background: rgba(192, 57, 43, 0.15);
+    color: #c0392b;
+}
+
+.status-card.resolved .status-icon {
+    background: rgba(39, 174, 96, 0.15);
+    color: #27ae60;
+}
+
+.status-info h4 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.status-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .vulnerability-status-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .vulnerability-status-cards {
+        grid-template-columns: 1fr;
+    }
+}
