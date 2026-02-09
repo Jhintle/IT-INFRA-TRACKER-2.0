@@ -520,7 +520,7 @@ class OfflineApiClient {
         });
         
         // Calculate weekly tasks for this week (matching backend logic)
-        const today = new Date();
+        // Reuse existing 'today' variable from vulnerability calculation above
         const startOfYear = new Date(today.getFullYear(), 0, 1);
         const pastDays = (today - startOfYear) / 86400000;
         const currentWeek = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
