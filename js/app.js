@@ -7,6 +7,9 @@ class App {
         this.autoSwitchInterval = null;
         this.tabs = ['dashboard', 'projects', 'weekly-tasks', 'vulnerabilities', 'risks', 'critical-tasks'];
         this.currentTabIndex = 0;
+        this.isAutoSwitchPaused = false;
+        this.userActivityTimeout = null;
+        this.ACTIVITY_DELAY = 30000; // Resume auto-switch after 30 seconds of inactivity
     }
 
     async init() {
@@ -107,12 +110,18 @@ class App {
 
     startAutoSwitch() {
         console.log('Starting auto-switch between modules (5 seconds interval)');
+        this.initUserActivityDetection();
         this.autoSwitchInterval = setInterval(() => {
-            this.currentTabIndex = (this.currentTabIndex + 1) % this.tabs.length;
-            const nextTab = this.tabs[this.currentTabIndex];
-            console.log('Auto-switching to:', nextTab);
-            this.showTab(nextTab);
-            this.initializeModule(nextTab);
+            // Only switch if not paused
+            if (!this.isAutoSwitchPaused) {
+                this.currentTabIndex = (this.currentTabIndex + 1) % this.tabs.length;
+                const nextTab = this.tabs[this.currentTabIndex];
+                console.log('Auto-switching to:', nextTab);
+                this.showTab(nextTab);
+                this.initializeModule(nextTab);
+            } else {
+                console.log('Auto-switch paused - waiting for user activity to stop');
+            }
         }, 5000);
     }
 
@@ -121,6 +130,120 @@ class App {
             clearInterval(this.autoSwitchInterval);
             this.autoSwitchInterval = null;
             console.log('Auto-switch stopped');
+        }
+        if (this.userActivityTimeout) {
+            clearTimeout(this.userActivityTimeout);
+            this.userActivityTimeout = null;
+        }
+    }
+
+    initUserActivityDetection() {
+        // Detect user activity in content area
+        const contentArea = document.querySelector('.content-area') || document;
+        
+        const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'input', 'change'];
+        
+        activityEvents.forEach(event => {
+            contentArea.addEventListener(event, () => this.handleUserActivity(), { passive: true });
+        });
+
+        // Also detect when modals are open
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    const modalContainer = document.getElementById('modalContainer');
+                    if (modalContainer && modalContainer.innerHTML.trim() !== '') {
+                        this.pauseAutoSwitch('Modal is open');
+                    } else {
+                        this.resumeAutoSwitchAfterDelay();
+                    }
+                }
+            });
+        });
+
+        const modalContainer = document.getElementById('modalContainer');
+        if (modalContainer) {
+            observer.observe(modalContainer, { childList: true, subtree: true });
+        }
+    }
+
+    handleUserActivity() {
+        // Pause auto-switch when user is active
+        if (!this.isAutoSwitchPaused) {
+            this.pauseAutoSwitch('User activity detected');
+        }
+        
+        // Reset the timeout
+        if (this.userActivityTimeout) {
+            clearTimeout(this.userActivityTimeout);
+        }
+        
+        // Resume after period of inactivity
+        this.userActivityTimeout = setTimeout(() => {
+            this.resumeAutoSwitch();
+        }, this.ACTIVITY_DELAY);
+    }
+
+    pauseAutoSwitch(reason) {
+        this.isAutoSwitchPaused = true;
+        console.log(`Auto-switch PAUSED: ${reason}`);
+        
+        // Visual indicator
+        this.showPauseIndicator(true);
+    }
+
+    resumeAutoSwitch() {
+        if (this.isAutoSwitchPaused) {
+            this.isAutoSwitchPaused = false;
+            console.log('Auto-switch RESUMED');
+            
+            // Remove visual indicator
+            this.showPauseIndicator(false);
+        }
+    }
+
+    resumeAutoSwitchAfterDelay() {
+        // Small delay before resuming to avoid rapid switching
+        setTimeout(() => {
+            this.resumeAutoSwitch();
+        }, 1000);
+    }
+
+    showPauseIndicator(show) {
+        let indicator = document.getElementById('autoSwitchPauseIndicator');
+        
+        if (show) {
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'autoSwitchPauseIndicator';
+                indicator.innerHTML = '<i class="fas fa-pause-circle"></i> Auto-switch paused';
+                indicator.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    background: var(--bg-secondary);
+                    color: var(--text-primary);
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    font-size: 0.875rem;
+                    z-index: 9999;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                `;
+                document.body.appendChild(indicator);
+                
+                // Fade in
+                setTimeout(() => indicator.style.opacity = '1', 10);
+            }
+        } else {
+            if (indicator) {
+                indicator.style.opacity = '0';
+                setTimeout(() => indicator.remove(), 300);
+            }
         }
     }
 
@@ -132,8 +255,15 @@ class App {
             button.addEventListener('click', () => {
                 const tabName = button.dataset.tab;
                 console.log('Tab clicked:', tabName);
+                
+                // Pause auto-switch when user manually clicks a tab
+                this.pauseAutoSwitch('Manual tab selection');
+                
                 this.showTab(tabName);
                 this.initializeModule(tabName);
+                
+                // Resume after delay
+                this.resumeAutoSwitchAfterDelay();
             });
         });
     }
