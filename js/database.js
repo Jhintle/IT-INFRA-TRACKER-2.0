@@ -417,12 +417,41 @@ class DatabaseManager {
                 { severity: 'Critical', count: vulnerabilities.filter(v => v.severity === 'Critical').length }
             ];
             
-            // Calculate vulnerability statuses
-            const open = vulnerabilities.filter(v => v.status === 'Open').length;
-            const inProgress = vulnerabilities.filter(v => v.status === 'In Progress').length;
-            const due = vulnerabilities.filter(v => v.status === 'Due').length;
-            const breached = vulnerabilities.filter(v => v.status === 'Breached').length;
-            const resolved = vulnerabilities.filter(v => v.status === 'Resolved').length;
+            // Calculate vulnerability statuses based on due date (matching frontend/backend logic)
+            const DUE_WARNING_DAYS = 7;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            let open = 0, inProgress = 0, due = 0, breached = 0, resolved = 0;
+            
+            vulnerabilities.forEach(v => {
+                let calculatedStatus = v.status || 'Open';
+                
+                // If not resolved, calculate based on due date
+                if (calculatedStatus !== 'Resolved' && v.due_date) {
+                    const dueDate = new Date(v.due_date);
+                    dueDate.setHours(0, 0, 0, 0);
+                    const diffTime = dueDate - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (diffDays < 0) {
+                        calculatedStatus = 'Breached';
+                    } else if (diffDays <= DUE_WARNING_DAYS) {
+                        calculatedStatus = 'Due';
+                    } else {
+                        calculatedStatus = 'Open';
+                    }
+                }
+                
+                // Count by calculated status
+                switch(calculatedStatus) {
+                    case 'Open': open++; break;
+                    case 'In Progress': inProgress++; break;
+                    case 'Due': due++; break;
+                    case 'Breached': breached++; break;
+                    case 'Resolved': resolved++; break;
+                }
+            });
             
             // Calculate weekly tasks for this week
             const today = new Date();

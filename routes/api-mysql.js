@@ -44,15 +44,36 @@ router.get('/dashboard/stats', async (req, res) => {
             'SELECT COUNT(*) as total FROM weekly_tasks WHERE week_number = ? AND year = ?', 
             [currentWeek, currentYear]
         );
-        const [vulnerabilities] = await db.query('SELECT status, COUNT(*) as count FROM vulnerabilities GROUP BY status');
+        const [vulnerabilities] = await db.query('SELECT id, status, due_date FROM vulnerabilities');
         const [[risks]] = await db.query('SELECT COUNT(*) as total FROM risk_register WHERE is_archived = 0');
         const [[criticalTasks]] = await db.query('SELECT COUNT(*) as total FROM critical_tasks WHERE is_archived = 0');
         const [severityData] = await db.query('SELECT severity, COUNT(*) as count FROM vulnerabilities GROUP BY severity');
 
-        // Process vulnerability status counts safely
-        const vulnStats = vulnerabilities.reduce((acc, row) => {
-            const status = row.status || 'Unknown';
-            acc[status] = (acc[status] || 0) + parseInt(row.count);
+        // Calculate vulnerability status based on due date (matching frontend logic)
+        const DUE_WARNING_DAYS = 7;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const vulnStats = vulnerabilities.reduce((acc, vuln) => {
+            let calculatedStatus = vuln.status || 'Open';
+            
+            // If not resolved, calculate based on due date
+            if (calculatedStatus !== 'Resolved' && vuln.due_date) {
+                const due = new Date(vuln.due_date);
+                due.setHours(0, 0, 0, 0);
+                const diffTime = due - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 0) {
+                    calculatedStatus = 'Breached';
+                } else if (diffDays <= DUE_WARNING_DAYS) {
+                    calculatedStatus = 'Due';
+                } else {
+                    calculatedStatus = 'Open';
+                }
+            }
+            
+            acc[calculatedStatus] = (acc[calculatedStatus] || 0) + 1;
             return acc;
         }, {
             total: 0,
@@ -64,7 +85,7 @@ router.get('/dashboard/stats', async (req, res) => {
         });
 
         // Calculate total vulnerabilities
-        vulnStats.total = vulnerabilities.reduce((sum, row) => sum + parseInt(row.count), 0);
+        vulnStats.total = vulnerabilities.length;
 
         // Format bySeverity
         const bySeverity = [
