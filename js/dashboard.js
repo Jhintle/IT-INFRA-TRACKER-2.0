@@ -102,7 +102,6 @@ class DashboardManager {
             const vulnOpenEl = document.getElementById('vulnOpenCount');
             const vulnDueEl = document.getElementById('vulnDueCount');
             const vulnBreachedEl = document.getElementById('vulnBreachedCount');
-            const vulnResolvedEl = document.getElementById('vulnResolvedCount');
             
             if (vulnOpenEl) {
                 vulnOpenEl.textContent = stats.vulnerabilities.open || 0;
@@ -115,10 +114,6 @@ class DashboardManager {
             if (vulnBreachedEl) {
                 vulnBreachedEl.textContent = stats.vulnerabilities.breached || 0;
                 console.log('Updated breached vulnerabilities to:', stats.vulnerabilities.breached);
-            }
-            if (vulnResolvedEl) {
-                vulnResolvedEl.textContent = stats.vulnerabilities.resolved || 0;
-                console.log('Updated resolved vulnerabilities to:', stats.vulnerabilities.resolved);
             }
 
         } catch (error) {

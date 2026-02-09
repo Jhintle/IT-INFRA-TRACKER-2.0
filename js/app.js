@@ -4,6 +4,9 @@ class App {
         this.db = null;
         this.currentTheme = localStorage.getItem('theme') || 'light';
         this.isInitialized = false;
+        this.autoSwitchInterval = null;
+        this.tabs = ['dashboard', 'projects', 'weekly-tasks', 'vulnerabilities', 'risks', 'critical-tasks'];
+        this.currentTabIndex = 0;
     }
 
     async init() {
@@ -94,8 +97,30 @@ class App {
             // Show welcome message for first-time users
             this.checkFirstTimeUser();
             
+            // Start auto-switching between modules every 5 seconds
+            this.startAutoSwitch();
+            
         } catch (error) {
             console.error('Application initialization failed:', error);
+        }
+    }
+
+    startAutoSwitch() {
+        console.log('Starting auto-switch between modules (5 seconds interval)');
+        this.autoSwitchInterval = setInterval(() => {
+            this.currentTabIndex = (this.currentTabIndex + 1) % this.tabs.length;
+            const nextTab = this.tabs[this.currentTabIndex];
+            console.log('Auto-switching to:', nextTab);
+            this.showTab(nextTab);
+            this.initializeModule(nextTab);
+        }, 5000);
+    }
+
+    stopAutoSwitch() {
+        if (this.autoSwitchInterval) {
+            clearInterval(this.autoSwitchInterval);
+            this.autoSwitchInterval = null;
+            console.log('Auto-switch stopped');
         }
     }
 
