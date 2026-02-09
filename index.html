@@ -39,34 +39,11 @@
 <body>
     <script>
         // Global functions for inline onclick handlers
-        window.loadDemoDirect = function() {
-            if (!window.dbManager || !window.DemoDataLoader) {
-                alert('ERROR: Components not ready. Please wait and try again.');
-                return;
-            }
-            var loader = new window.DemoDataLoader(window.dbManager);
-            loader.loadDemoData().then(function() {
-                alert('Demo data loaded successfully!');
-            }).catch(function(err) {
-                alert('Error: ' + err.message);
-            });
-        };
-        
         window.exportDirect = function() {
             if (window.app && window.app.exportData) {
                 window.app.exportData();
             } else {
                 alert('App not ready');
-            }
-        };
-        
-        window.clearDataDirect = function() {
-            if (confirm('Clear ALL data? This cannot be undone.')) {
-                if (window.app && window.app.clearAllData) {
-                    window.app.clearAllData().then(function() {
-                        alert('All data cleared!');
-                    });
-                }
             }
         };
         
@@ -116,12 +93,6 @@
                 <span class="logo-text">IT Infrastructure Activity Tracker</span>
             </h1>
             <div class="header-actions">
-                <button id="loadDemoBtn" class="btn btn-success" onclick="window.loadDemoDirect()">
-                    <i class="fas fa-database"></i> Load Demo
-                </button>
-                <button id="clearDataBtn" class="btn btn-danger" onclick="window.clearDataDirect()">
-                    <i class="fas fa-trash-alt"></i> Clear Data
-                </button>
                 <button id="exportBtn" class="btn btn-secondary" onclick="window.exportDirect()">
                     <i class="fas fa-download"></i> Export
                 </button>
