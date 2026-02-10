@@ -87,12 +87,6 @@ body {
     color: var(--primary-color);
 }
 
-.logo-img {
-    height: 40px;
-    width: auto;
-    object-fit: contain;
-}
-
 .logo-text {
     font-size: 1.25rem;
     font-weight: 600;
