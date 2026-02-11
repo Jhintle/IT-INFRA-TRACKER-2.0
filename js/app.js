@@ -109,7 +109,7 @@ class App {
     }
 
     startAutoSwitch() {
-        console.log('Starting auto-switch between modules (5 seconds interval)');
+        console.log('Starting auto-switch between modules (15 seconds interval)');
         this.initUserActivityDetection();
         this.autoSwitchInterval = setInterval(() => {
             // Only switch if not paused
@@ -122,7 +122,7 @@ class App {
             } else {
                 console.log('Auto-switch paused - waiting for user activity to stop');
             }
-        }, 5000);
+        }, 15000);
     }
 
     stopAutoSwitch() {
