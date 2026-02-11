@@ -976,14 +976,23 @@ class VulnerabilitiesManager {
             // Show appropriate message
             let message = '';
             if (errorCount === 0) {
+                // Build message focusing on new additions and removals
+                const parts = [];
+                
+                if (importedCount > 0) {
+                    parts.push(`${importedCount} new added`);
+                }
+                
                 if (removedCount > 0) {
-                    message = `Import complete: ${importedCount} new, ${updatedCount} updated, ${removedCount} removed (resolved). Total: ${allVulns.length}`;
-                } else if (importedCount > 0 && updatedCount > 0) {
-                    message = `Import complete: ${importedCount} new, ${updatedCount} updated. Total: ${allVulns.length}`;
-                } else if (importedCount > 0) {
-                    message = `Successfully imported ${importedCount} new vulnerabilities. Total: ${allVulns.length}`;
-                } else if (updatedCount > 0) {
-                    message = `Updated ${updatedCount} existing vulnerabilities with new due dates. Total: ${allVulns.length}`;
+                    parts.push(`${removedCount} removed (resolved)`);
+                }
+                
+                if (updatedCount > 0) {
+                    parts.push(`${updatedCount} updated`);
+                }
+                
+                if (parts.length > 0) {
+                    message = `Import complete: ${parts.join(', ')}. Total: ${allVulns.length}`;
                 } else if (unchangedCount > 0) {
                     message = `No changes needed. ${unchangedCount} vulnerabilities already up-to-date.`;
                 } else {
@@ -991,7 +1000,7 @@ class VulnerabilitiesManager {
                 }
                 this.showSuccess(message);
             } else {
-                this.showError(`Import partially completed with ${errorCount} errors. ${importedCount} new, ${updatedCount} updated, ${removedCount} removed. Check console.`);
+                this.showError(`Import completed with ${errorCount} errors. ${importedCount} new, ${removedCount} removed, ${updatedCount} updated. Check console.`);
             }
         }, 100);
     }
