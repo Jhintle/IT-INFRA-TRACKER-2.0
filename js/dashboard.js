@@ -103,17 +103,44 @@ class DashboardManager {
             const vulnDueEl = document.getElementById('vulnDueCount');
             const vulnBreachedEl = document.getElementById('vulnBreachedCount');
             
+            // Get previous counts for comparison
+            const previousStats = JSON.parse(localStorage.getItem('vulnerabilityStats') || '{}');
+            const currentStats = {
+                open: stats.vulnerabilities.open || 0,
+                due: stats.vulnerabilities.due || 0,
+                breached: stats.vulnerabilities.breached || 0,
+                total: stats.vulnerabilities.total || 0,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Calculate changes
+            const openChange = currentStats.open - (previousStats.open || 0);
+            const dueChange = currentStats.due - (previousStats.due || 0);
+            const breachedChange = currentStats.breached - (previousStats.breached || 0);
+            const totalChange = currentStats.total - (previousStats.total || 0);
+            
             if (vulnOpenEl) {
-                vulnOpenEl.textContent = stats.vulnerabilities.open || 0;
-                console.log('Updated open vulnerabilities to:', stats.vulnerabilities.open);
+                vulnOpenEl.textContent = currentStats.open;
+                this.appendChangeIndicator(vulnOpenEl, openChange);
+                console.log('Updated open vulnerabilities to:', currentStats.open, 'Change:', openChange);
             }
             if (vulnDueEl) {
-                vulnDueEl.textContent = stats.vulnerabilities.due || 0;
-                console.log('Updated due vulnerabilities to:', stats.vulnerabilities.due);
+                vulnDueEl.textContent = currentStats.due;
+                this.appendChangeIndicator(vulnDueEl, dueChange);
+                console.log('Updated due vulnerabilities to:', currentStats.due, 'Change:', dueChange);
             }
             if (vulnBreachedEl) {
-                vulnBreachedEl.textContent = stats.vulnerabilities.breached || 0;
-                console.log('Updated breached vulnerabilities to:', stats.vulnerabilities.breached);
+                vulnBreachedEl.textContent = currentStats.breached;
+                this.appendChangeIndicator(vulnBreachedEl, breachedChange);
+                console.log('Updated breached vulnerabilities to:', currentStats.breached, 'Change:', breachedChange);
+            }
+            
+            // Store current stats for next comparison
+            localStorage.setItem('vulnerabilityStats', JSON.stringify(currentStats));
+            
+            // Show total change summary if there are changes
+            if (totalChange !== 0) {
+                this.showTotalChangeSummary(totalChange, openChange, dueChange, breachedChange);
             }
 
         } catch (error) {
@@ -621,6 +648,70 @@ class DashboardManager {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    appendChangeIndicator(element, change) {
+        // Remove existing change indicator
+        const existingIndicator = element.parentElement.querySelector('.change-indicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+        
+        if (change === 0) return;
+        
+        const indicator = document.createElement('span');
+        indicator.className = 'change-indicator';
+        
+        if (change > 0) {
+            indicator.innerHTML = ` <i class="fas fa-arrow-up"></i> +${change}`;
+            indicator.style.color = '#e74c3c'; // Red for increase
+        } else {
+            indicator.innerHTML = ` <i class="fas fa-arrow-down"></i> ${change}`;
+            indicator.style.color = '#27ae60'; // Green for decrease
+        }
+        
+        indicator.style.fontSize = '0.75rem';
+        indicator.style.marginLeft = '8px';
+        indicator.style.fontWeight = '600';
+        
+        element.parentElement.appendChild(indicator);
+    }
+
+    showTotalChangeSummary(totalChange, openChange, dueChange, breachedChange) {
+        // Remove existing summary
+        const existingSummary = document.querySelector('.vulnerability-change-summary');
+        if (existingSummary) {
+            existingSummary.remove();
+        }
+        
+        const summary = document.createElement('div');
+        summary.className = 'vulnerability-change-summary';
+        
+        let changeText = totalChange > 0 ? `+${totalChange} since last update` : `${totalChange} since last update`;
+        let changes = [];
+        if (openChange !== 0) changes.push(`${openChange > 0 ? '+' : ''}${openChange} Open`);
+        if (dueChange !== 0) changes.push(`${dueChange > 0 ? '+' : ''}${dueChange} Due`);
+        if (breachedChange !== 0) changes.push(`${breachedChange > 0 ? '+' : ''}${breachedChange} Breached`);
+        
+        summary.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-primary); border-radius: 6px; margin-top: 12px; font-size: 0.875rem;">
+                <i class="fas fa-exchange-alt" style="color: var(--primary-color);"></i>
+                <span><strong>${changeText}</strong>${changes.length > 0 ? ' (' + changes.join(', ') + ')' : ''}</span>
+            </div>
+        `;
+        
+        // Insert after the vulnerability status cards
+        const statusSection = document.querySelector('.vulnerability-status-section');
+        if (statusSection) {
+            statusSection.appendChild(summary);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                summary.style.opacity = '0';
+                summary.style.transition = 'opacity 0.5s';
+                setTimeout(() => summary.remove(), 500);
+            }, 10000);
+        }
     }
 }
 

@@ -853,6 +853,7 @@ class VulnerabilitiesManager {
         console.log(`Tracking ${importedRequestItems.size} unique request items from import`);
 
         // First, remove vulnerabilities not in the new import (assumed resolved)
+        let removalErrors = 0;
         try {
             const existingVulnerabilities = await this.db.select('vulnerabilities');
             const toRemove = existingVulnerabilities.filter(v => !importedRequestItems.has(v.title));
@@ -866,11 +867,13 @@ class VulnerabilitiesManager {
                         console.log(`Removed (assumed resolved): ${vuln.title}`);
                     } catch (err) {
                         console.error(`Error removing ${vuln.title}:`, err);
+                        removalErrors++;
                     }
                 }
             }
         } catch (error) {
             console.error('Error during removal phase:', error);
+            removalErrors++;
         }
 
         // Process the import
@@ -975,7 +978,11 @@ class VulnerabilitiesManager {
             
             // Show appropriate message
             let message = '';
-            if (errorCount === 0) {
+            const totalProcessed = importedCount + removedCount + updatedCount + unchangedCount;
+            const successRate = totalProcessed > 0 ? ((totalProcessed - errorCount) / totalProcessed * 100) : 100;
+            
+            // Only show error if more than 10% of items failed
+            if (errorCount === 0 || successRate >= 90) {
                 // Build message focusing on new additions and removals
                 const parts = [];
                 
@@ -993,6 +1000,9 @@ class VulnerabilitiesManager {
                 
                 if (parts.length > 0) {
                     message = `Import complete: ${parts.join(', ')}. Total: ${allVulns.length}`;
+                    if (errorCount > 0) {
+                        message += ` (${errorCount} skipped)`;
+                    }
                 } else if (unchangedCount > 0) {
                     message = `No changes needed. ${unchangedCount} vulnerabilities already up-to-date.`;
                 } else {
