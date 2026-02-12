@@ -963,6 +963,16 @@ class VulnerabilitiesManager {
         console.log(`Import complete: ${importedCount} new, ${updatedCount} updated, ${removedCount} removed, ${unchangedCount} unchanged, ${errorCount} errors`);
 
         // Force refresh of the display
+        // Store import statistics for dashboard display
+        const importStats = {
+            added: importedCount,
+            resolved: removedCount,
+            updated: updatedCount,
+            timestamp: new Date().toLocaleString()
+        };
+        localStorage.setItem('lastVulnerabilityImport', JSON.stringify(importStats));
+        console.log('Import statistics saved:', importStats);
+
         setTimeout(async () => {
             console.log('Refreshing vulnerabilities display...');
             await this.loadVulnerabilities();

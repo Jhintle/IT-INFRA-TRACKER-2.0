@@ -142,6 +142,9 @@ class DashboardManager {
             if (totalChange !== 0) {
                 this.showTotalChangeSummary(totalChange, openChange, dueChange, breachedChange);
             }
+            
+            // Display import summary if available
+            this.displayImportSummary();
 
         } catch (error) {
             console.error('Error updating summary cards:', error);
@@ -678,14 +681,14 @@ class DashboardManager {
     }
 
     showTotalChangeSummary(totalChange, openChange, dueChange, breachedChange) {
-        // Remove existing summary
-        const existingSummary = document.querySelector('.vulnerability-change-summary');
+        // This is a temporary popup summary
+        const existingSummary = document.querySelector('.vulnerability-change-popup');
         if (existingSummary) {
             existingSummary.remove();
         }
         
         const summary = document.createElement('div');
-        summary.className = 'vulnerability-change-summary';
+        summary.className = 'vulnerability-change-popup';
         
         let changeText = totalChange > 0 ? `+${totalChange} since last update` : `${totalChange} since last update`;
         let changes = [];
@@ -712,6 +715,35 @@ class DashboardManager {
                 setTimeout(() => summary.remove(), 500);
             }, 10000);
         }
+    }
+
+    displayImportSummary() {
+        // Get import statistics from localStorage
+        const importData = localStorage.getItem('lastVulnerabilityImport');
+        const summaryEl = document.getElementById('vulnChangeSummary');
+        const addedEl = document.getElementById('vulnAddedCount');
+        const resolvedEl = document.getElementById('vulnResolvedCount');
+        const timeEl = document.getElementById('lastImportTime');
+        
+        if (!summaryEl || !importData) {
+            if (summaryEl) summaryEl.style.display = 'none';
+            return;
+        }
+        
+        const stats = JSON.parse(importData);
+        
+        // Only show if there were changes
+        if (stats.added === 0 && stats.resolved === 0) {
+            summaryEl.style.display = 'none';
+            return;
+        }
+        
+        // Update the display
+        addedEl.textContent = stats.added || 0;
+        resolvedEl.textContent = stats.resolved || 0;
+        timeEl.textContent = stats.timestamp || '-';
+        
+        summaryEl.style.display = 'flex';
     }
 }
 
