@@ -518,7 +518,13 @@ class VulnerabilitiesManager {
                 
             } catch (error) {
                 console.error('Error parsing XLSX file:', error);
-                this.showError('Failed to parse Excel file. Please ensure it is a valid .xlsx file.');
+                console.error('Error stack:', error.stack);
+                console.error('File details:', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type
+                });
+                this.showError('Failed to parse Excel file: ' + (error.message || 'Unknown error') + '. Please ensure it is a valid .xlsx file.');
                 event.target.value = '';
             }
         };
