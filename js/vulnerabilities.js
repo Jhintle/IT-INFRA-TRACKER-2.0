@@ -5,6 +5,7 @@ class VulnerabilitiesManager {
         this.currentSeverityFilter = '';
         this.currentStatusFilter = '';
         this.currentSortBy = 'newest'; // Default sort: newest first
+        this.searchTerm = ''; // Search filter
         this.DUE_WARNING_DAYS = 7; // Consider "Due" when within 7 days
         this.pagination = {
             currentPage: 1,
@@ -150,6 +151,38 @@ class VulnerabilitiesManager {
             });
         }
 
+        // Search functionality
+        const searchInput = document.getElementById('vulnerabilitySearchInput');
+        const searchBtn = document.getElementById('vulnerabilitySearchBtn');
+        
+        if (searchInput) {
+            console.log('Attaching search input listener');
+            searchInput.addEventListener('input', async (e) => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.pagination.currentPage = 1; // Reset to first page on search
+                await this.loadVulnerabilities();
+            });
+            
+            // Handle Enter key
+            searchInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    this.searchTerm = e.target.value.toLowerCase();
+                    this.pagination.currentPage = 1;
+                    await this.loadVulnerabilities();
+                }
+            });
+        }
+        
+        if (searchBtn) {
+            searchBtn.addEventListener('click', async () => {
+                if (searchInput) {
+                    this.searchTerm = searchInput.value.toLowerCase();
+                    this.pagination.currentPage = 1;
+                    await this.loadVulnerabilities();
+                }
+            });
+        }
+
         // Pagination controls
         this.attachPaginationListeners();
     }
@@ -260,7 +293,21 @@ class VulnerabilitiesManager {
             const whereClause = where.length > 0 ? where.join(' AND ') : '';
             
             // Get vulnerabilities without sorting (we'll sort in memory)
-            const vulnerabilities = await this.db.select('vulnerabilities', whereClause, params);
+            let vulnerabilities = await this.db.select('vulnerabilities', whereClause, params);
+            
+            // Apply search filter
+            if (this.searchTerm) {
+                vulnerabilities = vulnerabilities.filter(vuln => {
+                    const searchableText = [
+                        vuln.title,
+                        vuln.description,
+                        vuln.assignment_group,
+                        vuln.severity,
+                        vuln.status
+                    ].join(' ').toLowerCase();
+                    return searchableText.includes(this.searchTerm);
+                });
+            }
             
             // Apply user-selected sorting
             const sortedVulnerabilities = this.sortVulnerabilities(vulnerabilities);
