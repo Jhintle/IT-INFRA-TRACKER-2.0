@@ -720,6 +720,10 @@ class VulnerabilitiesManager {
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
             
+            console.log('Raw headers from Excel:', headers);
+            console.log('Total rows in Excel:', jsonData.length);
+            console.log('First data row:', jsonData[1]);
+            
             // Find column indices
             const requestItemIdx = this.findColumnIndex(headers, ['request', 'item', 'ritm', 'number', 'ticket']);
             const priorityIdx = this.findColumnIndex(headers, ['priority', 'urgency', 'impact']);
@@ -734,23 +738,34 @@ class VulnerabilitiesManager {
                 assignmentGroupIdx,
                 dueDateIdx
             });
+            
+            if (requestItemIdx === -1) {
+                console.error('Could not find Request Item column. Headers found:', headers);
+                this.showError('Could not find "Request Item" column. Please ensure your Excel file has a column with "Request" or "Item" in the header.');
+                return;
+            }
 
             const vulnerabilities = [];
             let skippedCount = 0;
 
             for (let i = 1; i < jsonData.length; i++) {
                 const row = jsonData[i];
-                if (!row || row.length === 0) continue;
+                if (!row || row.length === 0) {
+                    console.log(`Row ${i}: Empty row, skipping`);
+                    continue;
+                }
 
-                const requestItem = requestItemIdx >= 0 ? String(row[requestItemIdx] || '') : '';
+                const requestItem = requestItemIdx >= 0 ? String(row[requestItemIdx] || '').trim() : '';
+                
+                console.log(`Row ${i}: Raw value at index ${requestItemIdx}:`, row[requestItemIdx]);
+                console.log(`Row ${i}: Processed Request Item = "${requestItem}"`);
                 
                 // Skip rows without a request item
                 if (!requestItem) {
+                    console.log(`Row ${i}: No request item found, skipping`);
                     skippedCount++;
                     continue;
                 }
-                
-                console.log(`Row ${i}: Request Item = "${requestItem}"`);
 
                 const priority = priorityIdx >= 0 ? String(row[priorityIdx] || '') : '';
                 const description = descriptionIdx >= 0 ? String(row[descriptionIdx] || '') : '';
@@ -781,9 +796,14 @@ class VulnerabilitiesManager {
             }
 
             console.log(`Import summary: ${vulnerabilities.length} matched, ${skippedCount} skipped`);
+            console.log('First 5 rows that were skipped:', jsonData.slice(1, 6).map((row, idx) => ({
+                row: idx + 2,
+                requestItemValue: row[requestItemIdx],
+                allValues: row
+            })));
 
             if (vulnerabilities.length === 0) {
-                this.showError(`No vulnerabilities found with Request Items. Processed ${jsonData.length - 1} rows.`);
+                this.showError(`No vulnerabilities found with Request Items. Processed ${jsonData.length - 1} rows. Check console for details.`);
                 return;
             }
 
