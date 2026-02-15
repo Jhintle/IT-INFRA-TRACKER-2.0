@@ -732,18 +732,21 @@ class DashboardManager {
         
         const stats = JSON.parse(importData);
         
-        // Only show if there were changes
-        if (stats.added === 0 && stats.resolved === 0) {
-            summaryEl.style.display = 'none';
-            return;
-        }
-        
-        // Update the display
+        // Update the display - always show if there's import data
         addedEl.textContent = stats.added || 0;
         resolvedEl.textContent = stats.resolved || 0;
         timeEl.textContent = stats.timestamp || '-';
         
         summaryEl.style.display = 'flex';
+        
+        // Highlight if there were actual changes
+        if (stats.added > 0 || stats.resolved > 0) {
+            summaryEl.style.background = 'var(--bg-primary)';
+            summaryEl.style.border = '2px solid var(--primary-color)';
+        } else {
+            summaryEl.style.background = 'var(--bg-secondary)';
+            summaryEl.style.border = '1px solid var(--border-color)';
+        }
     }
 }
 
