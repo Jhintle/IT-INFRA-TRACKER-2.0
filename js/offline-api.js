@@ -476,7 +476,7 @@ class OfflineApiClient {
         const vulnerabilities = data.vulnerabilities;
         const bySeverity = [
             { severity: 'Low', count: vulnerabilities.filter(v => v.severity === 'Low').length },
-            { severity: 'Medium', count: vulnerabilities.filter(v => v.severity === 'Medium').length },
+            { severity: 'Medium', count: vulnerabilities.filter(v => v.severity === 'Medium' || v.severity === 'Moderate').length },
             { severity: 'High', count: vulnerabilities.filter(v => v.severity === 'High').length },
             { severity: 'Critical', count: vulnerabilities.filter(v => v.severity === 'Critical').length }
         ];

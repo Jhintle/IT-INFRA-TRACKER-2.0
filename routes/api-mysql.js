@@ -87,7 +87,7 @@ router.get('/dashboard/stats', async (req, res) => {
         // Calculate total vulnerabilities
         vulnStats.total = vulnerabilities.length;
 
-        // Format bySeverity
+        // Format bySeverity - map 'Moderate' to 'Medium' for chart compatibility
         const bySeverity = [
             { severity: 'Low', count: 0 },
             { severity: 'Medium', count: 0 },
@@ -96,7 +96,13 @@ router.get('/dashboard/stats', async (req, res) => {
         ];
         
         severityData.forEach(row => {
-            const item = bySeverity.find(s => s.severity === row.severity);
+            // Map database severity values to chart labels
+            let severityLabel = row.severity;
+            if (severityLabel === 'Moderate') {
+                severityLabel = 'Medium';
+            }
+            
+            const item = bySeverity.find(s => s.severity === severityLabel);
             if (item) {
                 item.count = parseInt(row.count);
             }
