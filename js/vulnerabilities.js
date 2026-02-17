@@ -544,6 +544,34 @@ class VulnerabilitiesManager {
         const file = event.target.files[0];
         if (!file) return;
 
+        // Check if XLSX library is loaded
+        if (typeof XLSX === 'undefined') {
+            console.error('XLSX library not loaded!');
+            this.showError('Excel processing library not available. Please refresh the page and try again.');
+            event.target.value = '';
+            return;
+        }
+
+        console.log('Importing file:', file.name, 'Type:', file.type, 'Size:', file.size);
+
+        // Check file extension
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        if (fileExtension === 'xls') {
+            this.showError('This file is in the older .xls format. Please open it in Excel and save as .xlsx format before importing.');
+            event.target.value = '';
+            return;
+        }
+        if (fileExtension === 'xlsm') {
+            this.showError('This file contains macros (.xlsm). Please remove macros and save as .xlsx format before importing.');
+            event.target.value = '';
+            return;
+        }
+        if (fileExtension !== 'xlsx') {
+            this.showError('Please select a .xlsx file only.');
+            event.target.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
@@ -566,12 +594,37 @@ class VulnerabilitiesManager {
             } catch (error) {
                 console.error('Error parsing XLSX file:', error);
                 console.error('Error stack:', error.stack);
+                console.error('Error name:', error.name);
+                console.error('Error type:', typeof error);
                 console.error('File details:', {
                     name: file.name,
                     size: file.size,
-                    type: file.type
+                    type: file.type,
+                    lastModified: new Date(file.lastModified).toISOString()
                 });
-                this.showError('Failed to parse Excel file: ' + (error.message || 'Unknown error') + '. Please ensure it is a valid .xlsx file.');
+                console.error('File extension:', file.name.split('.').pop().toLowerCase());
+                console.error('First 100 bytes (hex):', Array.from(data.slice(0, 100)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                
+                // Check if XLSX library is loaded
+                console.error('XLSX library loaded:', typeof XLSX !== 'undefined');
+                if (typeof XLSX !== 'undefined') {
+                    console.error('XLSX version:', XLSX.version);
+                }
+                
+                let errorMessage = 'Failed to parse Excel file';
+                if (error.message && error.message.includes('password')) {
+                    errorMessage = 'This file appears to be password protected. Please remove the password and try again.';
+                } else if (error.message && error.message.includes('corrupted')) {
+                    errorMessage = 'This file appears to be corrupted. Please try opening it in Excel and re-saving as .xlsx format.';
+                } else if (file.name.toLowerCase().endsWith('.xls')) {
+                    errorMessage = 'This appears to be an older .xls format. Please open in Excel and save as .xlsx format before importing.';
+                } else if (file.name.toLowerCase().endsWith('.xlsm')) {
+                    errorMessage = 'This file contains macros (.xlsm). Please remove macros and save as .xlsx format before importing.';
+                } else {
+                    errorMessage = 'Failed to parse Excel file: ' + (error.message || 'Unknown error') + '. Please ensure it is a valid .xlsx file (not .xls or .xlsm) and try re-saving it in Excel.';
+                }
+                
+                this.showError(errorMessage);
                 event.target.value = '';
             }
         };
