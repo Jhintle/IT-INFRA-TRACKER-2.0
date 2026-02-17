@@ -855,13 +855,24 @@ class VulnerabilitiesManager {
                     continue;
                 }
 
-                const requestItem = requestItemIdx >= 0 ? String(row[requestItemIdx] || '').trim() : '';
+                // Get raw value and handle different data types
+                let rawValue = row[requestItemIdx];
+                let requestItem = '';
                 
-                console.log(`Row ${i}: Raw value at index ${requestItemIdx}:`, row[requestItemIdx]);
+                // Handle numbers (Excel sometimes stores request numbers as numbers)
+                if (typeof rawValue === 'number') {
+                    requestItem = String(rawValue);
+                } else if (typeof rawValue === 'string') {
+                    requestItem = rawValue.trim();
+                } else if (rawValue !== undefined && rawValue !== null) {
+                    requestItem = String(rawValue).trim();
+                }
+                
+                console.log(`Row ${i}: Raw value type: ${typeof rawValue}, value:`, rawValue);
                 console.log(`Row ${i}: Processed Request Item = "${requestItem}"`);
                 
                 // Skip rows without a request item
-                if (!requestItem) {
+                if (!requestItem || requestItem === '') {
                     console.log(`Row ${i}: No request item found, skipping`);
                     skippedCount++;
                     continue;
@@ -896,11 +907,47 @@ class VulnerabilitiesManager {
             }
 
             console.log(`Import summary: ${vulnerabilities.length} matched, ${skippedCount} skipped`);
-            console.log('First 5 rows that were skipped:', jsonData.slice(1, 6).map((row, idx) => ({
-                row: idx + 2,
-                requestItemValue: row[requestItemIdx],
-                allValues: row
-            })));
+            
+            // Show all skipped rows for debugging
+            const skippedRows = [];
+            for (let i = 1; i < jsonData.length && skippedRows.length < 20; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0) {
+                    skippedRows.push({row: i + 1, reason: 'Empty row'});
+                } else {
+                    let rawValue = row[requestItemIdx];
+                    let requestItem = '';
+                    if (typeof rawValue === 'number') {
+                        requestItem = String(rawValue);
+                    } else if (typeof rawValue === 'string') {
+                        requestItem = rawValue.trim();
+                    } else if (rawValue !== undefined && rawValue !== null) {
+                        requestItem = String(rawValue).trim();
+                    }
+                    
+                    if (!requestItem || requestItem === '') {
+                        skippedRows.push({
+                            row: i + 1,
+                            reason: 'No request item',
+                            rawValue: rawValue,
+                            rawValueType: typeof rawValue
+                        });
+                    }
+                }
+            }
+            
+            if (skippedRows.length > 0) {
+                console.log('Skipped rows:', skippedRows);
+            }
+            
+            // Show first 10 vulnerabilities that will be imported
+            console.log('First 10 vulnerabilities to be imported:');
+            vulnerabilities.slice(0, 10).forEach((v, i) => {
+                console.log(`  ${i + 1}. ${v.title}`);
+            });
+            if (vulnerabilities.length > 10) {
+                console.log(`  ... and ${vulnerabilities.length - 10} more`);
+            }
 
             if (vulnerabilities.length === 0) {
                 this.showError(`No vulnerabilities found with Request Items. Processed ${jsonData.length - 1} rows. Check console for details.`);
