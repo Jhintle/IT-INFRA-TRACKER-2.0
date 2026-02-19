@@ -254,9 +254,9 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
 
         Object.keys(updateData).forEach(key => {
             if (updateData[key] !== undefined && updateData[key] !== null) {
-                // Convert camelCase to snake_case
+                // Convert camelCase to snake_case and escape with backticks
                 const dbField = fieldMapping[key] || key;
-                updateFields.push(`${dbField} = ?`);
+                updateFields.push(`\`${dbField}\` = ?`);
                 updateValues.push(updateData[key]);
             }
         });
@@ -266,7 +266,7 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
         }
 
         // Add updated_at timestamp
-        updateFields.push(`updated_at = ?`);
+        updateFields.push('`updated_at` = ?');
         updateValues.push(new Date().toISOString());
         
         // Add id for WHERE clause
