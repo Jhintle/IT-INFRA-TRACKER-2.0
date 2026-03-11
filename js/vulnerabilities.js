@@ -1150,6 +1150,9 @@ class VulnerabilitiesManager {
             console.log('Refreshing vulnerabilities display...');
             await this.loadVulnerabilities();
             
+            // Recalculate all statuses after import to ensure due dates are current
+            await this.recalculateAllStatuses();
+            
             if (window.dashboardManager) {
                 console.log('Updating dashboard...');
                 window.dashboardManager.updateDashboard();
@@ -1348,6 +1351,9 @@ class VulnerabilitiesManager {
 
             this.closeModal();
             await this.loadVulnerabilities();
+            
+            // Recalculate all statuses after manual edit
+            await this.recalculateAllStatuses();
             
             if (window.dashboardManager) {
                 window.dashboardManager.updateDashboard();
