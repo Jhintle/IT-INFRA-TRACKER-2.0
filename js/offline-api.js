@@ -498,15 +498,9 @@ class OfflineApiClient {
                 default: open++; // Treat unknown status as Open
             }
         });
-                case 'In Progress': inProgress++; break;
-                case 'Due': due++; break;
-                case 'Breached': breached++; break;
-                case 'Resolved': resolved++; break;
-            }
-        });
         
         // Calculate weekly tasks for this week (matching backend logic)
-        // Reuse existing 'today' variable from vulnerability calculation above
+        const today = new Date();
         const startOfYear = new Date(today.getFullYear(), 0, 1);
         const pastDays = (today - startOfYear) / 86400000;
         const currentWeek = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);

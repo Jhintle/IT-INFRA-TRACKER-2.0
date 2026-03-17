@@ -434,7 +434,8 @@ class DatabaseManager {
             });
             
             // Calculate weekly tasks for this week
-            // Reuse existing 'today' variable from vulnerability calculation above
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             const weekStart = new Date(today);
             weekStart.setDate(weekStart.getDate() - weekStart.getDay());
             weekStart.setHours(0, 0, 0, 0);
