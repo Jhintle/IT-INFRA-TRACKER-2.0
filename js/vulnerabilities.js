@@ -45,7 +45,9 @@ class VulnerabilitiesManager {
     async recalculateAllStatuses() {
         try {
             const vulnerabilities = await this.db.select('vulnerabilities');
+            console.log(`Recalculating statuses for ${vulnerabilities.length} vulnerabilities`);
             let updatedCount = 0;
+            let errorCount = 0;
             
             for (const vuln of vulnerabilities) {
                 // Skip resolved vulnerabilities
@@ -56,14 +58,22 @@ class VulnerabilitiesManager {
                 
                 // Update if status has changed
                 if (calculatedStatus !== vuln.status) {
-                    await this.db.update('vulnerabilities', vuln.id, { status: calculatedStatus });
-                    updatedCount++;
-                    console.log(`Updated ${vuln.title}: ${vuln.status} → ${calculatedStatus}`);
+                    try {
+                        await this.db.update('vulnerabilities', vuln.id, { status: calculatedStatus });
+                        updatedCount++;
+                        console.log(`Updated ${vuln.title}: ${vuln.status} → ${calculatedStatus}`);
+                    } catch (updateError) {
+                        console.error(`Failed to update ${vuln.title}:`, updateError);
+                        errorCount++;
+                    }
                 }
             }
             
             if (updatedCount > 0) {
                 console.log(`Recalculated ${updatedCount} vulnerability statuses`);
+            }
+            if (errorCount > 0) {
+                console.error(`Failed to update ${errorCount} vulnerabilities`);
             }
         } catch (error) {
             console.error('Error recalculating statuses:', error);
@@ -1147,15 +1157,21 @@ class VulnerabilitiesManager {
         console.log('Import statistics saved:', importStats);
 
         setTimeout(async () => {
-            console.log('Refreshing vulnerabilities display...');
-            await this.loadVulnerabilities();
+            console.log('Refreshing vulnerabilities display after import...');
             
-            // Recalculate all statuses after import to ensure due dates are current
+            // First recalculate statuses to ensure database is up to date
             await this.recalculateAllStatuses();
             
+            // Then load vulnerabilities
+            await this.loadVulnerabilities();
+            
+            // Small delay to ensure database has processed all updates
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Update dashboard with fresh data
             if (window.dashboardManager) {
                 console.log('Updating dashboard...');
-                window.dashboardManager.updateDashboard();
+                await window.dashboardManager.updateDashboard();
             }
             
             // Verify import by checking count

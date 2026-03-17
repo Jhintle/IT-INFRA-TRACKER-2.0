@@ -70,9 +70,10 @@ class DashboardManager {
             const activeVulnerabilities = stats.vulnerabilities.open + stats.vulnerabilities.due + stats.vulnerabilities.breached;
             const vulnEl = document.getElementById('vulnerabilitiesCount');
             console.log('Vulnerabilities element:', vulnEl);
+            console.log('Vuln stats received:', stats.vulnerabilities);
             if (vulnEl) {
                 vulnEl.textContent = activeVulnerabilities;
-                console.log('Updated vulnerabilities count to:', activeVulnerabilities);
+                console.log('Updated vulnerabilities count to:', activeVulnerabilities, '(open:', stats.vulnerabilities.open, 'due:', stats.vulnerabilities.due, 'breached:', stats.vulnerabilities.breached, ')');
             } else {
                 console.error('vulnerabilitiesCount element not found!');
             }
