@@ -49,31 +49,11 @@ router.get('/dashboard/stats', async (req, res) => {
         const [[criticalTasks]] = await db.query('SELECT COUNT(*) as total FROM critical_tasks WHERE is_archived = 0');
         const [severityData] = await db.query('SELECT severity, COUNT(*) as count FROM vulnerabilities GROUP BY severity');
 
-        // Calculate vulnerability status based on due date (matching frontend logic)
-        const DUE_WARNING_DAYS = 7;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+        // Use the stored status directly - no dynamic calculation
+        // Status is calculated and stored in DB by the frontend during import/recalculation
         const vulnStats = vulnerabilities.reduce((acc, vuln) => {
-            let calculatedStatus = vuln.status || 'Open';
-            
-            // If not resolved, calculate based on due date
-            if (calculatedStatus !== 'Resolved' && vuln.due_date) {
-                const due = new Date(vuln.due_date);
-                due.setHours(0, 0, 0, 0);
-                const diffTime = due - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (diffDays < 0) {
-                    calculatedStatus = 'Breached';
-                } else if (diffDays <= DUE_WARNING_DAYS) {
-                    calculatedStatus = 'Due';
-                } else {
-                    calculatedStatus = 'Open';
-                }
-            }
-            
-            acc[calculatedStatus] = (acc[calculatedStatus] || 0) + 1;
+            const status = vuln.status || 'Open';
+            acc[status] = (acc[status] || 0) + 1;
             return acc;
         }, {
             total: 0,

@@ -409,7 +409,7 @@ class DatabaseManager {
             // Calculate projects
             const activeProjects = projects.filter(p => p.status === 'Active').length;
             
-            // Calculate vulnerabilities by severity
+            // Calculate vulnerability by severity (using stored values)
             const bySeverity = [
                 { severity: 'Low', count: vulnerabilities.filter(v => v.severity === 'Low').length },
                 { severity: 'Medium', count: vulnerabilities.filter(v => v.severity === 'Medium' || v.severity === 'Moderate').length },
@@ -417,39 +417,19 @@ class DatabaseManager {
                 { severity: 'Critical', count: vulnerabilities.filter(v => v.severity === 'Critical').length }
             ];
             
-            // Calculate vulnerability statuses based on due date (matching frontend/backend logic)
-            const DUE_WARNING_DAYS = 7;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
+            // Count by stored status directly - no dynamic calculation
+            // Status is calculated and stored in DB during import/recalculation
             let open = 0, inProgress = 0, due = 0, breached = 0, resolved = 0;
             
             vulnerabilities.forEach(v => {
-                let calculatedStatus = v.status || 'Open';
-                
-                // If not resolved, calculate based on due date
-                if (calculatedStatus !== 'Resolved' && v.due_date) {
-                    const dueDate = new Date(v.due_date);
-                    dueDate.setHours(0, 0, 0, 0);
-                    const diffTime = dueDate - today;
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    
-                    if (diffDays < 0) {
-                        calculatedStatus = 'Breached';
-                    } else if (diffDays <= DUE_WARNING_DAYS) {
-                        calculatedStatus = 'Due';
-                    } else {
-                        calculatedStatus = 'Open';
-                    }
-                }
-                
-                // Count by calculated status
-                switch(calculatedStatus) {
+                const status = v.status || 'Open';
+                switch(status) {
                     case 'Open': open++; break;
                     case 'In Progress': inProgress++; break;
                     case 'Due': due++; break;
                     case 'Breached': breached++; break;
                     case 'Resolved': resolved++; break;
+                    default: open++; // Treat unknown status as Open
                 }
             });
             

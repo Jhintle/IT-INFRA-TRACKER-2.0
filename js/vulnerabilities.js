@@ -1180,18 +1180,24 @@ class VulnerabilitiesManager {
             console.log('Refreshing vulnerabilities display after import...');
             
             // First recalculate statuses to ensure database is up to date
+            console.log('Starting status recalculation...');
             await this.recalculateAllStatuses();
+            console.log('Status recalculation complete');
             
-            // Then load vulnerabilities
+            // Then load vulnerabilities  
+            console.log('Loading vulnerabilities...');
             await this.loadVulnerabilities();
+            console.log('Vulnerabilities loaded');
             
-            // Small delay to ensure database has processed all updates
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Longer delay to ensure database has processed all updates
+            console.log('Waiting for database to settle...');
+            await new Promise(resolve => setTimeout(resolve, 500));
             
             // Update dashboard with fresh data
             if (window.dashboardManager) {
                 console.log('Updating dashboard...');
                 await window.dashboardManager.updateDashboard();
+                console.log('Dashboard updated');
             }
             
             // Verify import by checking count
