@@ -17,18 +17,37 @@ class VulnerabilitiesManager {
 
     // Calculate status based on due date
     calculateStatus(dueDate, currentStatus) {
-        if (!dueDate) return 'Open';
+        if (!dueDate || dueDate === '') return 'Open';
         
         // If manually set to Resolved, keep it
         if (currentStatus === 'Resolved') return 'Resolved';
         
+        // Parse date correctly - handle both string and Date inputs
+        let due;
+        if (dueDate instanceof Date) {
+            due = new Date(dueDate);
+        } else if (typeof dueDate === 'string') {
+            // Parse ISO date string (YYYY-MM-DD) - treat as local date
+            const parts = dueDate.split('-');
+            if (parts.length === 3) {
+                due = new Date(parts[0], parts[1] - 1, parts[2]);
+            } else {
+                due = new Date(dueDate);
+            }
+        } else {
+            return 'Open';
+        }
+        
+        if (isNaN(due.getTime())) return 'Open';
+        
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const due = new Date(dueDate);
         due.setHours(0, 0, 0, 0);
         
         const diffTime = due - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        console.log(`Status check: dueDate=${dueDate}, parsedDue=${due.toISOString()}, today=${today.toISOString()}, diffDays=${diffDays}`);
         
         if (diffDays < 0) {
             // Due date has passed
@@ -55,6 +74,7 @@ class VulnerabilitiesManager {
                 
                 // Calculate current status based on due date
                 const calculatedStatus = this.calculateStatus(vuln.due_date, vuln.status);
+                console.log(`Checking: "${vuln.title}" - due_date: "${vuln.due_date}", current status: "${vuln.status}", calculated: "${calculatedStatus}"`);
                 
                 // Update if status has changed
                 if (calculatedStatus !== vuln.status) {
