@@ -69,7 +69,7 @@ class VulnerabilitiesManager {
             let errorCount = 0;
             
             for (const vuln of vulnerabilities) {
-                // Skip resolved vulnerabilities
+                // Skip resolved vulnerabilities - keep their status as Resolved
                 if (vuln.status === 'Resolved') continue;
                 
                 // Calculate current status based on due date
@@ -88,6 +88,14 @@ class VulnerabilitiesManager {
                     }
                 }
             }
+            
+            console.log(`Status counts after recalculation:`);
+            const counts = { Open: 0, 'In Progress': 0, Due: 0, Breached: 0, Resolved: 0 };
+            vulnerabilities.forEach(v => {
+                const s = v.status || 'Open';
+                counts[s] = (counts[s] || 0) + 1;
+            });
+            console.log(counts);
             
             if (updatedCount > 0) {
                 console.log(`Recalculated ${updatedCount} vulnerability statuses`);
