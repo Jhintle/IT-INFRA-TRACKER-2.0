@@ -472,6 +472,8 @@ class VulnerabilitiesManager {
                 const isBreached = calculatedStatus === 'Breached';
                 const isDue = calculatedStatus === 'Due';
                 
+                console.log(`[RENDER] "${vulnerability.title}" - due_date="${vulnerability.due_date}", status="${vulnerability.status}", calculated="${calculatedStatus}", isBreached=${isBreached}, isDue=${isDue}`);
+                
                 // Add visual indicators for breached/due
                 let statusBadgeClass = this.getStatusClass(calculatedStatus);
                 let rowStyle = '';
