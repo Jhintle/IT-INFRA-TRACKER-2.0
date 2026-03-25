@@ -22,41 +22,33 @@ class VulnerabilitiesManager {
         // If manually set to Resolved, keep it
         if (currentStatus === 'Resolved') return 'Resolved';
         
-        // Parse date correctly - handle both string and Date inputs
+        // Parse date as local date (YYYY-MM-DD format)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
         let due;
-        if (dueDate instanceof Date) {
+        if (typeof dueDate === 'string') {
+            // Create date in local timezone
+            const [year, month, day] = dueDate.split('-').map(Number);
+            due = new Date(year, month - 1, day);
+        } else if (dueDate instanceof Date) {
             due = new Date(dueDate);
-        } else if (typeof dueDate === 'string') {
-            // Parse ISO date string (YYYY-MM-DD) - treat as local date
-            const parts = dueDate.split('-');
-            if (parts.length === 3) {
-                due = new Date(parts[0], parts[1] - 1, parts[2]);
-            } else {
-                due = new Date(dueDate);
-            }
         } else {
             return 'Open';
         }
         
-        if (isNaN(due.getTime())) return 'Open';
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         due.setHours(0, 0, 0, 0);
         
-        const diffTime = due - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // Calculate days difference
+        const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
         
-        console.log(`Status check: dueDate=${dueDate}, parsedDue=${due.toISOString()}, today=${today.toISOString()}, diffDays=${diffDays}`);
+        console.log(`Status check: dueDate=${dueDate}, today=${today.toDateString()}, diffDays=${diffDays}`);
         
         if (diffDays < 0) {
-            // Due date has passed
             return 'Breached';
         } else if (diffDays <= this.DUE_WARNING_DAYS) {
-            // Due date is within warning period (7 days)
             return 'Due';
         } else {
-            // Due date is in the future, more than warning period
             return 'Open';
         }
     }
