@@ -493,7 +493,7 @@ class VulnerabilitiesManager {
                     </td>
                     <td title="${this.escapeHtml(vulnerability.description || '')}">${this.escapeHtml(shortDesc)}</td>
                     <td>${this.escapeHtml(vulnerability.assignment_group || '-')}</td>
-                    <td>${this.formatDate(vulnerability.due_date)} ${isBreached ? '<span style="color: #ef4444;">⚠️ OVERDUE</span>' : isDue ? '<span style="color: #f59e0b;">⏰ DUE SOON</span>' : ''}</td>
+                    <td>${this.formatDate(vulnerability.due_date)} <strong style="${isBreached ? 'color: #ef4444; background: #fee2e2; padding: 2px 6px; border-radius: 4px;' : isDue ? 'color: #f59e0b; background: #fef3c7; padding: 2px 6px; border-radius: 4px;' : 'color: #6b7280;'}">${calculatedStatus}</strong></td>
                     <td>
                         <span class="badge badge-${statusBadgeClass}">
                             ${calculatedStatus}
