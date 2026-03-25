@@ -42,7 +42,7 @@ class VulnerabilitiesManager {
         // Calculate days difference
         const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
         
-        console.log(`Status check: dueDate=${dueDate}, today=${today.toDateString()}, diffDays=${diffDays}`);
+        console.log(`[STATUS FIX] Status check: dueDate=${dueDate}, today=${today.toDateString()}, diffDays=${diffDays}`);
         
         if (diffDays < 0) {
             return 'Breached';
