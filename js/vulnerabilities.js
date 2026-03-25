@@ -17,23 +17,51 @@ class VulnerabilitiesManager {
 
     // Calculate status based on due date
     calculateStatus(dueDate, currentStatus) {
-        if (!dueDate || dueDate === '') return 'Open';
+        console.log(`[STATUS] calculateStatus called: dueDate=${dueDate}, currentStatus=${currentStatus}`);
+        
+        if (!dueDate || dueDate === '') {
+            console.log(`[STATUS] No due date, returning Open`);
+            return 'Open';
+        }
         
         // If manually set to Resolved, keep it
-        if (currentStatus === 'Resolved') return 'Resolved';
+        if (currentStatus === 'Resolved') {
+            console.log(`[STATUS] Status is Resolved, returning Resolved`);
+            return 'Resolved';
+        }
         
         // Parse date as local date (YYYY-MM-DD format)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
         let due;
-        if (typeof dueDate === 'string') {
-            // Create date in local timezone
-            const [year, month, day] = dueDate.split('-').map(Number);
-            due = new Date(year, month - 1, day);
-        } else if (dueDate instanceof Date) {
-            due = new Date(dueDate);
-        } else {
+        try {
+            if (typeof dueDate === 'string') {
+                // Handle YYYY-MM-DD format
+                const parts = dueDate.split('-');
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0]);
+                    const month = parseInt(parts[1]) - 1;
+                    const day = parseInt(parts[2]);
+                    due = new Date(year, month, day);
+                    console.log(`[STATUS] Parsed string date: year=${year}, month=${month}, day=${day}, result=${due.toDateString()}`);
+                } else {
+                    due = new Date(dueDate);
+                }
+            } else if (dueDate instanceof Date) {
+                due = new Date(dueDate);
+            } else {
+                console.log(`[STATUS] Unknown date type, returning Open`);
+                return 'Open';
+            }
+        } catch (e) {
+            console.log(`[STATUS] Date parse error: ${e.message}, returning Open`);
+            return 'Open';
+        }
+        
+        // Check if date is valid
+        if (!due || isNaN(due.getTime())) {
+            console.log(`[STATUS] Invalid date, returning Open`);
             return 'Open';
         }
         
@@ -42,15 +70,19 @@ class VulnerabilitiesManager {
         // Calculate days difference
         const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
         
-        console.log(`[STATUS FIX] Status check: dueDate=${dueDate}, today=${today.toDateString()}, diffDays=${diffDays}`);
+        console.log(`[STATUS] Today: ${today.toDateString()}, Due: ${due.toDateString()}, Diff days: ${diffDays}`);
         
+        let result;
         if (diffDays < 0) {
-            return 'Breached';
+            result = 'Breached';
         } else if (diffDays <= this.DUE_WARNING_DAYS) {
-            return 'Due';
+            result = 'Due';
         } else {
-            return 'Open';
+            result = 'Open';
         }
+        
+        console.log(`[STATUS] Returning: ${result}`);
+        return result;
     }
 
     async recalculateAllStatuses() {
