@@ -339,6 +339,8 @@ class VulnerabilitiesManager {
 
     async loadVulnerabilities() {
         try {
+            console.log(`[LOAD] Loading vulnerabilities with filters: severity=${this.currentSeverityFilter}, status=${this.currentStatusFilter}, search=${this.searchTerm}`);
+            
             let where = [];
             let params = [];
 
@@ -353,12 +355,15 @@ class VulnerabilitiesManager {
             }
 
             const whereClause = where.length > 0 ? where.join(' AND ') : '';
-            
+            console.log(`[LOAD] WHERE clause: '${whereClause}', params:`, params);
+
             // Get vulnerabilities without sorting (we'll sort in memory)
             let vulnerabilities = await this.db.select('vulnerabilities', whereClause, params);
-            
+            console.log(`[LOAD] Retrieved ${vulnerabilities.length} raw vulnerabilities from database`);
+
             // Apply search filter
             if (this.searchTerm) {
+                const beforeSearch = vulnerabilities.length;
                 vulnerabilities = vulnerabilities.filter(vuln => {
                     const searchableText = [
                         vuln.title,
@@ -369,15 +374,19 @@ class VulnerabilitiesManager {
                     ].join(' ').toLowerCase();
                     return searchableText.includes(this.searchTerm);
                 });
+                console.log(`[LOAD] After search filter: ${beforeSearch} -> ${vulnerabilities.length}`);
             }
-            
+
             // Apply user-selected sorting
             const sortedVulnerabilities = this.sortVulnerabilities(vulnerabilities);
-            
+            console.log(`[LOAD] After sorting: ${sortedVulnerabilities.length}`);
+
             this.renderVulnerabilities(sortedVulnerabilities);
+            console.log(`[LOAD] Render complete`);
         } catch (error) {
             console.error('Error loading vulnerabilities:', error);
-            this.showError('Failed to load vulnerabilities');
+            console.error('Error stack:', error.stack);
+            this.showError('Failed to load vulnerabilities: ' + error.message);
         }
     }
 
