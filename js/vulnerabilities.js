@@ -1159,6 +1159,58 @@ class VulnerabilitiesManager {
                                     await this.db.update('vulnerabilities', existingVuln.id, { description: updatedDescription });
                                 }
                                 
+                                // Removed success log to reduce output for large imports
+                                updatedCount++;
+                            } catch (updateError) {
+                                // Handle 404 - vulnerability might have been deleted
+                                if (updateError.message && updateError.message.includes('404')) {
+                                    console.warn(`Vulnerability ${existingVuln.id} not found during update, creating new instead`);
+                                    // Create as new vulnerability
+                                    const newVuln = {
+                                        ...vuln,
+                                        title: vuln.title
+                                    };
+                                    await this.db.insert('vulnerabilities', newVuln);
+                                    importedCount++;
+                                    updatedCount--; // Don't count as update since it's now new
+                                    continue;
+                                } else {
+                                    throw updateError; // Re-throw non-404 errors
+                                }
+                            }
+                        } else {
+                            // Same data, ignore
+                            unchangedCount++;
+                        }
+                    } else {
+                        // Insert new vulnerability
+                        await this.db.insert('vulnerabilities', vuln);
+                        importedCount++;
+                    }
+                } catch (err) {
+                    console.error(`Error processing vulnerability ${vuln.title}:`, err);
+                    errorCount++;
+                }
+            }
+                            
+                            // Check assignment group
+                            if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
+                                const oldGroup = existingVuln.assignment_group;
+                                const newGroup = vuln.assignment_group;
+                                updateData.assignment_group = newGroup;
+                                updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                            }
+                            
+                            try {
+                                await this.db.update('vulnerabilities', existingVuln.id, updateData);
+                                
+                                // Add note about changes to description
+                                if (updateNotes.length > 0) {
+                                    const note = `\n\n[Updated ${new Date().toLocaleDateString()}]: ${updateNotes.join(', ')}`;
+                                    const updatedDescription = (existingVuln.description || '') + note;
+                                    await this.db.update('vulnerabilities', existingVuln.id, { description: updatedDescription });
+                                }
+                                
                                 console.log(`Updated vulnerability: ${vuln.title} (${updateNotes.join(', ')})`);
                                 updatedCount++;
                             } catch (updateError) {
