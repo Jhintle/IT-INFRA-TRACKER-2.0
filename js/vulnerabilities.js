@@ -1794,40 +1794,86 @@ class VulnerabilitiesManager {
 // Initialize vulnerabilities manager when database is ready
 async function initVulnerabilitiesManager() {
     console.log('=== initVulnerabilitiesManager() START ===');
+    console.log('[VULN INIT] Checking if window.dbManager exists:', !!window.dbManager);
     
-    // Always try to create the manager if we have a database connection
+    // Always create the manager - we'll handle initialization separately
+    try {
+        console.log('[VULN INIT] Creating VulnerabilitiesManager instance...');
+        window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager || null);
+        console.log('[VULN INIT] VulnerabilitiesManager instance created:', !!window.vulnerabilitiesManager);
+        if (window.vulnerabilitiesManager) {
+            console.log('[VULN INIT] Manager db property:', !!window.vulnerabilitiesManager.db);
+        }
+    } catch (createError) {
+        console.error('[VULN INIT] ERROR creating VulnerabilitiesManager instance:', createError);
+        // Create a minimal manager instance to prevent errors
+        window.vulnerabilitiesManager = {
+            initialized: false,
+            attachEventListeners: () => {},
+            recalculateAllStatuses: () => Promise.resolve(),
+            loadVulnerabilities: () => Promise.resolve(),
+            showVulnerabilityModal: () => { alert('Vulnerabilities manager not available'); },
+            handleXlsxImport: () => { alert('Vulnerabilities manager not available'); },
+            addVulnerability: () => { alert('Vulnerabilities manager not available'); },
+            editVulnerability: () => { alert('Vulnerabilities manager not available'); },
+            deleteVulnerability: () => { alert('Vulnerabilities manager not available'); }
+        };
+    }
+    
+    // Now try to initialize it properly if we have a database connection
     if (window.dbManager) {
         try {
-            console.log('Creating VulnerabilitiesManager...');
-            window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
-            console.log('Vulnerabilities manager CREATED');
-            
-            // Wait for database to be ready
+            console.log('[VULN INIT] Waiting for database to be ready...');
             if (window.dbManager.ready) {
-                console.log('Waiting for database to be ready...');
                 await window.dbManager.ready;
-                console.log('Database ready!');
+                console.log('[VULN INIT] Database ready!');
             } else {
-                console.log('WARNING: window.dbManager.ready not available, proceeding anyway');
+                console.log('[VULN INIT] WARNING: window.dbManager.ready not available');
             }
             
-            // Initialize the manager fully
-            console.log('Initializing VulnerabilitiesManager...');
+            console.log('[VULN INIT] Initializing VulnerabilitiesManager...');
             await window.vulnerabilitiesManager.init();
-            console.log('VulnerabilitiesManager initialization completed');
-        } catch (error) {
-            console.error('ERROR initializing VulnerabilitiesManager:', error);
-            // Still ensure the manager exists even if init failed
-            if (!window.vulnerabilitiesManager) {
-                console.log('Creating VulnerabilitiesManager despite init error...');
-                window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
-                // Don't mark as initialized if init failed
+            console.log('[VULN INIT] VulnerabilitiesManager initialization completed');
+        } catch (initError) {
+            console.error('[VULN INIT] ERROR initializing VulnerabilitiesManager:', initError);
+            console.error('[VULN INIT] Init error stack:', initError.stack);
+            // Even if init failed, mark as initialized to prevent blocking UI
+            // The individual methods have their own error handling
+            if (window.vulnerabilitiesManager) {
+                window.vulnerabilitiesManager.initialized = true;
+                console.log('[VULN INIT] Marked as initialized despite init error');
             }
         }
     } else {
-        console.error('ERROR: window.dbManager is not available');
+        console.error('[VULN INIT] ERROR: window.dbManager is not available');
+        // Still mark as initialized to prevent blocking UI - methods will show appropriate errors
+        if (window.vulnerabilitiesManager) {
+            window.vulnerabilitiesManager.initialized = true;
+            console.log('[VULN INIT] Marked as initialized (no db available)');
+        }
     }
     
+    // Final safety check - ensure manager exists and is marked as initialized
+    if (!window.vulnerabilitiesManager) {
+        console.error('[VULN INIT] CRITICAL: Failed to create vulnerabilities manager');
+        window.vulnerabilitiesManager = {
+            initialized: true, // Mark as initialized to prevent blocking UI
+            attachEventListeners: () => {},
+            recalculateAllStatuses: () => Promise.resolve(),
+            loadVulnerabilities: () => Promise.resolve(),
+            showVulnerabilityModal: () => { alert('Vulnerabilities manager not available'); },
+            handleXlsxImport: () => { alert('Vulnerabilities manager not available'); },
+            addVulnerability: () => { alert('Vulnerabilities manager not available'); },
+            editVulnerability: () => { alert('Vulnerabilities manager not available'); },
+            deleteVulnerability: () => { alert('Vulnerabilities manager not available'); }
+        };
+    } else if (!window.vulnerabilitiesManager.initialized) {
+        console.warn('[VULN INIT] Manager exists but not initialized - marking as initialized');
+        window.vulnerabilitiesManager.initialized = true;
+    }
+    
+    console.log('[VULN INIT] Final state - manager exists:', !!window.vulnerabilitiesManager);
+    console.log('[VULN INIT] Final state - manager initialized:', window.vulnerabilitiesManager?.initialized);
     console.log('=== initVulnerabilitiesManager() END ===');
 }
 
