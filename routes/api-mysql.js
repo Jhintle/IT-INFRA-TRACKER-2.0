@@ -403,7 +403,12 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
         res.json(rows[0]);
     } catch (error) {
         console.error('Update vulnerability error:', error);
-        res.status(500).json({ error: 'Failed to update vulnerability' });
+        // Handle duplicate title error
+        if (error.code === 'ER_DUP_ENTRY') {
+            res.status(409).json({ error: 'Vulnerability with this title already exists' });
+        } else {
+            res.status(500).json({ error: 'Failed to update vulnerability: ' + error.message });
+        }
     }
 });
 

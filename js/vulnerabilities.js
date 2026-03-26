@@ -1113,33 +1113,136 @@ class VulnerabilitiesManager {
             removalErrors++;
         }
 
-        // Process the import
-        for (const vuln of vulnerabilities) {
-            try {
-                // Check for existing vulnerability by title (Request Item)
-                const existing = await this.db.select('vulnerabilities', 'title = ?', [vuln.title]);
-                
-                if (existing.length > 0) {
-                    const existingVuln = existing[0];
+            // Process the import
+            for (const vuln of vulnerabilities) {
+                try {
+                    // Check for existing vulnerability by title (Request Item)
+                    const existing = await this.db.select('vulnerabilities', 'title = ?', [vuln.title]);
                     
-                    // Check if any fields need updating
-                    const needsUpdate = (
-                        (vuln.due_date && existingVuln.due_date !== vuln.due_date) ||
-                        (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group)
-                    );
-                    
-                    if (needsUpdate) {
-                        const updateData = {};
-                        const updateNotes = [];
+                    if (existing.length > 0) {
+                        const existingVuln = existing[0];
                         
-                        // Check due date
-                        if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
-                            const oldDate = existingVuln.due_date;
-                            const newDate = vuln.due_date;
-                            updateData.due_date = newDate;
-                            updateData.status = this.calculateStatus(newDate, existingVuln.status);
-                            updateNotes.push(`Due Date: ${oldDate} → ${newDate}`);
+                        // Check if any fields need updating
+                        const needsUpdate = (
+                            (vuln.due_date && existingVuln.due_date !== vuln.due_date) ||
+                            (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group)
+                        );
+                        
+                        if (needsUpdate) {
+                            const updateData = {};
+                            const updateNotes = [];
+                            
+                            // Check due date
+                            if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
+                                const oldDate = existingVuln.due_date;
+                                const newDate = vuln.due_date;
+                                updateData.due_date = newDate;
+                                updateData.status = this.calculateStatus(newDate, existingVuln.status);
+                                updateNotes.push(`Due Date: ${oldDate} → ${newDate}`);
+                            }
+                            
+                            // Check assignment group
+                            if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
+                                const oldGroup = existingVuln.assignment_group;
+                                const newGroup = vuln.assignment_group;
+                                updateData.assignment_group = newGroup;
+                                updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                            }
+                            
+                            try {
+                                await this.db.update('vulnerabilities', existingVuln.id, updateData);
+                                
+                                // Add note about changes to description
+                                if (updateNotes.length > 0) {
+                                    const note = `\n\n[Updated ${new Date().toLocaleDateString()}]: ${updateNotes.join(', ')}`;
+                                    const updatedDescription = (existingVuln.description || '') + note;
+                                    await this.db.update('vulnerabilities', existingVuln.id, { description: updatedDescription });
+                                }
+                                
+                                console.log(`Updated vulnerability: ${vuln.title} (${updateNotes.join(', ')})`);
+                                updatedCount++;
+                            } catch (updateError) {
+                                console.error(`Failed to update ${vuln.title}:`, updateError);
+                                
+                                // Handle 404 - vulnerability might have been deleted
+                                if (updateError.message && updateError.message.includes('404')) {
+                                    console.warn(`Vulnerability ${existingVuln.id} not found during update, creating new instead`);
+                                    // Create as new vulnerability
+                                    const newVuln = {
+                                        ...vuln,
+                                        title: vuln.title
+                                    };
+                                    await this.db.insert('vulnerabilities', newVuln);
+                                    importedCount++;
+                                    updatedCount--; // Don't count as update since it's now new
+                                    console.log(`Created new vulnerability (404 recovery): ${vuln.title}`);
+                                    continue;
+                                } else {
+                                    throw updateError; // Re-throw non-404 errors
+                                }
+                            }
+                        } else {
+                            // Same data, ignore
+                            unchangedCount++;
+                            console.log(`Ignored duplicate (no changes): ${vuln.title}`);
                         }
+                    } else {
+                        // Insert new vulnerability
+                        try {
+                            await this.db.insert('vulnerabilities', vuln);
+                            importedCount++;
+                            console.log(`Inserted new vulnerability: ${vuln.title}`);
+                        } catch (insertError) {
+                            console.error(`Failed to insert ${vuln.title}:`, insertError);
+                            
+                            // Handle duplicate title error during insert
+                            if (insertError.message && insertError.message.includes('Duplicate entry')) {
+                                console.log(`Duplicate title detected for ${vuln.title}, treating as update instead`);
+                                // Try to update existing instead
+                                const existing = await this.db.select('vulnerabilities', 'title = ?', [vuln.title]);
+                                if (existing.length > 0) {
+                                    const updateData = {};
+                                    const updateNotes = [];
+                                    
+                                    // Update all fields
+                                    if (vuln.severity && existingVuln.severity !== vuln.severity) {
+                                        updateData.severity = vuln.severity;
+                                        updateNotes.push(`Severity: ${existingVuln.severity} → ${vuln.severity}`);
+                                    }
+                                    if (vuln.description && existingVuln.description !== vuln.description) {
+                                        updateData.description = vuln.description;
+                                        updateNotes.push('Description updated');
+                                    }
+                                    if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
+                                        updateData.assignment_group = vuln.assignment_group;
+                                        updateNotes.push(`Assignment Group: ${existingVuln.assignment_group} → ${vuln.assignment_group}`);
+                                    }
+                                    if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
+                                        updateData.due_date = vuln.due_date;
+                                        updateData.status = this.calculateStatus(vuln.due_date, existingVuln.status);
+                                        updateNotes.push(`Due Date: ${existingVuln.due_date} → ${vuln.due_date}`);
+                                    }
+                                    if (vuln.discovered_date && existingVuln.discovered_date !== vuln.discovered_date) {
+                                        updateData.discovered_date = vuln.discovered_date;
+                                        updateNotes.push('Discovered Date updated');
+                                    }
+                                    
+                                    if (Object.keys(updateData).length > 0) {
+                                        await this.db.update('vulnerabilities', existing[0].id, updateData);
+                                        updatedCount++;
+                                        console.log(`Updated vulnerability (from duplicate): ${vuln.title} (${updateNotes.join(', ')})`);
+                                    }
+                                }
+                            } else {
+                                throw insertError;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error processing vulnerability ${vuln.title}:`, err);
+                    errorCount++;
+                }
+            }
                         
                         // Check assignment group
                         if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
