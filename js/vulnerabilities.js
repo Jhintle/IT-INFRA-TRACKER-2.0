@@ -1773,31 +1773,37 @@ class VulnerabilitiesManager {
 async function initVulnerabilitiesManager() {
     console.log('=== initVulnerabilitiesManager() START ===');
     
-    try {
-        // Wait for database to be ready
-        if (window.dbManager && window.dbManager.ready) {
-            console.log('Waiting for database...');
-            await window.dbManager.ready;
-            console.log('Database ready!');
-        } else {
-            console.log('WARNING: window.dbManager not available');
-            return;
-        }
-        
-        if (window.dbManager) {
+    // Always try to create the manager if we have a database connection
+    if (window.dbManager) {
+        try {
             console.log('Creating VulnerabilitiesManager...');
             window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
-            console.log('Vulnerabilities manager CREATED and assigned to window.vulnerabilitiesManager');
+            console.log('Vulnerabilities manager CREATED');
+            
+            // Wait for database to be ready
+            if (window.dbManager.ready) {
+                console.log('Waiting for database to be ready...');
+                await window.dbManager.ready;
+                console.log('Database ready!');
+            } else {
+                console.log('WARNING: window.dbManager.ready not available, proceeding anyway');
+            }
             
             // Initialize the manager fully
             console.log('Initializing VulnerabilitiesManager...');
             await window.vulnerabilitiesManager.init();
             console.log('VulnerabilitiesManager initialization completed');
-        } else {
-            console.error('ERROR: window.dbManager is null after waiting!');
+        } catch (error) {
+            console.error('ERROR initializing VulnerabilitiesManager:', error);
+            // Still ensure the manager exists even if init failed
+            if (!window.vulnerabilitiesManager) {
+                console.log('Creating VulnerabilitiesManager despite init error...');
+                window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
+                // Don't mark as initialized if init failed
+            }
         }
-    } catch (error) {
-        console.error('ERROR in initVulnerabilitiesManager:', error);
+    } else {
+        console.error('ERROR: window.dbManager is not available');
     }
     
     console.log('=== initVulnerabilitiesManager() END ===');
