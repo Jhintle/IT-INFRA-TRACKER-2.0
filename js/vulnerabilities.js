@@ -1,4 +1,5 @@
 // Vulnerability Reports Management Module
+console.log('VULNERABILITIES.JS LOADED - VERSION: 2026-03-26-01');
 class VulnerabilitiesManager {
     constructor(database) {
         this.db = database;
@@ -136,6 +137,7 @@ class VulnerabilitiesManager {
         console.log('[VULN INIT] Starting initialization...');
         console.log('[VULN INIT] this.db:', this.db);
         console.log('[VULN INIT] typeof this.db:', typeof this.db);
+        console.log('[VULN INIT] this.db instanceof DatabaseManager:', this.db instanceof DatabaseManager);
         
         try {
             this.attachEventListeners();
