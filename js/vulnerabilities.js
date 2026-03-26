@@ -134,6 +134,9 @@ class VulnerabilitiesManager {
 
     async init() {
         console.log('[VULN INIT] Starting initialization...');
+        console.log('[VULN INIT] this.db:', this.db);
+        console.log('[VULN INIT] typeof this.db:', typeof this.db);
+        
         try {
             this.attachEventListeners();
             console.log('[VULN INIT] Event listeners attached');
@@ -150,6 +153,7 @@ class VulnerabilitiesManager {
             console.log('[VULN INIT] Vulnerabilities manager initialized successfully');
         } catch (error) {
             console.error('[VULN INIT] Error during initialization:', error);
+            console.error('[VULN INIT] Error stack:', error.stack);
             // Don't throw - allow partial initialization
             this.initialized = true; // Mark as initialized to prevent blocking UI
             console.log('[VULN INIT] Marked as initialized despite error');
