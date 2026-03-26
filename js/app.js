@@ -50,6 +50,7 @@ class App {
             this.showTab('dashboard');
             
             // Initialize dashboard if it exists
+            console.log('[APP INIT] Checking dashboard manager:', !!window.dashboardManager);
             if (window.dashboardManager) {
                 console.log('Dashboard manager found, initializing...');
                 try {
