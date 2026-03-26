@@ -133,11 +133,27 @@ class VulnerabilitiesManager {
     }
 
     async init() {
-        this.attachEventListeners();
-        await this.recalculateAllStatuses(); // Update statuses based on current dates
-        await this.loadVulnerabilities();
-        this.initialized = true;
-        console.log('Vulnerabilities manager initialized');
+        console.log('[VULN INIT] Starting initialization...');
+        try {
+            this.attachEventListeners();
+            console.log('[VULN INIT] Event listeners attached');
+            
+            console.log('[VULN INIT] Recalculating statuses...');
+            await this.recalculateAllStatuses();
+            console.log('[VULN INIT] Status recalculation complete');
+            
+            console.log('[VULN INIT] Loading vulnerabilities...');
+            await this.loadVulnerabilities();
+            console.log('[VULN INIT] Vulnerabilities loaded');
+            
+            this.initialized = true;
+            console.log('[VULN INIT] Vulnerabilities manager initialized successfully');
+        } catch (error) {
+            console.error('[VULN INIT] Error during initialization:', error);
+            // Don't throw - allow partial initialization
+            this.initialized = true; // Mark as initialized to prevent blocking UI
+            console.log('[VULN INIT] Marked as initialized despite error');
+        }
     }
 
     attachEventListeners() {
