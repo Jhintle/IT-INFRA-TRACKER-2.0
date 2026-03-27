@@ -106,7 +106,7 @@ class VulnerabilitiesManager {
                     try {
                         await this.db.update('vulnerabilities', vuln.id, { status: calculatedStatus });
                         updatedCount++;
-                        console.log(`Updated ${vuln.title}: ${vuln.status} → ${calculatedStatus}`);
+                        console.log(`Updated ${vuln.title}: ${vuln.status} -> ${calculatedStatus}`);
                     } catch (updateError) {
                         console.error(`Failed to update ${vuln.title}:`, updateError);
                         errorCount++;
@@ -1169,7 +1169,7 @@ class VulnerabilitiesManager {
                                 const newDate = vuln.due_date;
                                 updateData.due_date = newDate;
                                 updateData.status = this.calculateStatus(newDate, existingVuln.status);
-                                updateNotes.push(`Due Date: ${oldDate} → ${newDate}`);
+                                updateNotes.push(`Due Date: ${oldDate} -> ${newDate}`);
                             }
                             
                             // Check assignment group
@@ -1177,7 +1177,7 @@ class VulnerabilitiesManager {
                                 const oldGroup = existingVuln.assignment_group;
                                 const newGroup = vuln.assignment_group;
                                 updateData.assignment_group = newGroup;
-                                updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                                updateNotes.push(`Assignment Group: ${oldGroup} -> ${newGroup}`);
                             }
                             
                             try {
@@ -1229,7 +1229,7 @@ class VulnerabilitiesManager {
                                 const oldGroup = existingVuln.assignment_group;
                                 const newGroup = vuln.assignment_group;
                                 updateData.assignment_group = newGroup;
-                                updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                                updateNotes.push(`Assignment Group: ${oldGroup} -> ${newGroup}`);
                             }
                             
                             try {
@@ -1290,7 +1290,7 @@ class VulnerabilitiesManager {
                                     // Update all fields
                                     if (vuln.severity && existingVuln.severity !== vuln.severity) {
                                         updateData.severity = vuln.severity;
-                                        updateNotes.push(`Severity: ${existingVuln.severity} → ${vuln.severity}`);
+                                        updateNotes.push(`Severity: ${existingVuln.severity} -> ${vuln.severity}`);
                                     }
                                     if (vuln.description && existingVuln.description !== vuln.description) {
                                         updateData.description = vuln.description;
@@ -1298,12 +1298,12 @@ class VulnerabilitiesManager {
                                     }
                                     if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
                                         updateData.assignment_group = vuln.assignment_group;
-                                        updateNotes.push(`Assignment Group: ${existingVuln.assignment_group} → ${vuln.assignment_group}`);
+                                        updateNotes.push(`Assignment Group: ${existingVuln.assignment_group} -> ${vuln.assignment_group}`);
                                     }
                                     if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
                                         updateData.due_date = vuln.due_date;
                                         updateData.status = this.calculateStatus(vuln.due_date, existingVuln.status);
-                                        updateNotes.push(`Due Date: ${existingVuln.due_date} → ${vuln.due_date}`);
+                                        updateNotes.push(`Due Date: ${existingVuln.due_date} -> ${vuln.due_date}`);
                                     }
                                     if (vuln.discovered_date && existingVuln.discovered_date !== vuln.discovered_date) {
                                         updateData.discovered_date = vuln.discovered_date;
@@ -1332,7 +1332,7 @@ class VulnerabilitiesManager {
                             const oldGroup = existingVuln.assignment_group;
                             const newGroup = vuln.assignment_group;
                             updateData.assignment_group = newGroup;
-                            updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                            updateNotes.push(`Assignment Group: ${oldGroup} -> ${newGroup}`);
                         }
                         
                         try {
