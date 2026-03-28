@@ -30,12 +30,33 @@ class VulnerabilitiesManager {
         if (exportBtn) {
             exportBtn.addEventListener('click', () => this.exportVulnerabilities());
         }
+        
+        // Attach edit/delete listeners after render
+        this.attachRowListeners();
+    }
+    
+    attachRowListeners() {
+        setTimeout(() => {
+            document.querySelectorAll('.vulnerability-edit-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.editVulnerability(id);
+                };
+            });
+            document.querySelectorAll('.vulnerability-delete-btn').forEach(btn => {
+                btn.onclick = (e) => {
+                    const id = e.currentTarget.dataset.id;
+                    this.deleteVulnerability(id);
+                };
+            });
+        }, 100);
     }
 
     async loadVulnerabilities() {
         try {
             const vulnerabilities = await this.db.select('vulnerabilities');
             this.renderVulnerabilities(vulnerabilities);
+            this.attachRowListeners();
         } catch (error) {
             console.error('Error loading vulnerabilities:', error);
         }
@@ -52,19 +73,26 @@ class VulnerabilitiesManager {
         
         tbody.innerHTML = vulnerabilities.map(v => {
             const dueDate = v.due_date || '';
-            const isOverdue = dueDate && new Date(dueDate) < new Date();
+            const dueDateObj = dueDate ? new Date(dueDate) : null;
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const isOverdue = dueDateObj && dueDateObj < today;
             const status = isOverdue ? 'Breached' : (v.status || 'Open');
             
+            const formattedDate = dueDateObj ? dueDateObj.toLocaleDateString() : '-';
+            
             return `<tr data-vulnerability-id="${v.id}">
-                <td>${v.title || ''}</td>
+                <td><strong>${v.title || ''}</strong></td>
                 <td><span class="badge badge-${this.getSeverityClass(v.severity)}">${v.severity || 'Unknown'}</span></td>
-                <td>${(v.description || '').substring(0, 100)}</td>
+                <td title="${v.description || ''}">${(v.description || '').substring(0, 100)}${(v.description || '').length > 100 ? '...' : ''}</td>
                 <td>${v.assignment_group || '-'}</td>
-                <td>${dueDate} ${isOverdue ? '<span style="color:red">OVERDUE</span>' : ''}</td>
+                <td>${formattedDate}${isOverdue ? ' <span style="color:#ef4444;font-weight:bold;">⚠️ OVERDUE</span>' : ''}</td>
                 <td><span class="badge badge-${this.getStatusClass(status)}">${status}</span></td>
                 <td>
-                    <button class="edit-btn" data-id="${v.id}">Edit</button>
-                    <button class="delete-btn" data-id="${v.id}">Delete</button>
+                    <div class="action-buttons">
+                        <button class="edit-btn vulnerability-edit-btn" data-id="${v.id}" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="delete-btn vulnerability-delete-btn" data-id="${v.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
                 </td>
             </tr>`;
         }).join('');
@@ -80,21 +108,90 @@ class VulnerabilitiesManager {
         return map[status] || 'secondary';
     }
 
-    showVulnerabilityModal() {
-        console.log('showVulnerabilityModal called');
+    async saveVulnerability() {
+        const vulnId = document.getElementById('vulnId')?.value;
+        const vuln = {
+            title: document.getElementById('vulnTitle').value,
+            severity: document.getElementById('vulnSeverity').value,
+            due_date: document.getElementById('vulnDueDate').value,
+            assignment_group: document.getElementById('vulnAssignment').value,
+            description: document.getElementById('vulnDescription').value,
+            status: document.getElementById('vulnStatus')?.value || 'Open'
+        };
+        
+        if (!vuln.title) {
+            alert('Title is required');
+            return;
+        }
+        
+        if (vulnId) {
+            await this.db.update('vulnerabilities', vulnId, vuln);
+        } else {
+            await this.db.insert('vulnerabilities', vuln);
+        }
+        
+        this.closeModal();
+        await this.loadVulnerabilities();
+    }
+
+    async editVulnerability(id) {
+        const vulns = await this.db.select('vulnerabilities');
+        const vuln = vulns.find(v => v.id === id);
+        if (!vuln) return;
+        
+        this.showVulnerabilityModal(vuln);
+    }
+
+    async deleteVulnerability(id) {
+        if (!confirm('Are you sure you want to delete this vulnerability?')) return;
+        await this.db.delete('vulnerabilities', id);
+        await this.loadVulnerabilities();
+    }
+
+    showVulnerabilityModal(vuln = null) {
+        const isEdit = !!vuln;
         const modalHtml = `<div class="modal active">
-            <div class="modal-header"><h3>Add Vulnerability</h3></div>
+            <div class="modal-header">
+                <h3>${isEdit ? 'Edit' : 'Add'} Vulnerability</h3>
+                <button class="modal-close" onclick="window.vulnerabilitiesManager.closeModal()">&times;</button>
+            </div>
             <div class="modal-body">
-                <input type="text" id="vulnTitle" placeholder="Request Item" class="form-control" style="margin-bottom:10px">
-                <select id="vulnSeverity" class="form-control" style="margin-bottom:10px">
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                </select>
-                <input type="date" id="vulnDueDate" class="form-control" style="margin-bottom:10px">
-                <input type="text" id="vulnAssignment" placeholder="Assignment Group" class="form-control" style="margin-bottom:10px">
-                <textarea id="vulnDescription" placeholder="Description" class="form-control"></textarea>
+                ${isEdit ? `<input type="hidden" id="vulnId" value="${vuln.id}">` : ''}
+                <div class="form-group">
+                    <label>Request Item *</label>
+                    <input type="text" id="vulnTitle" value="${vuln?.title || ''}" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Severity</label>
+                    <select id="vulnSeverity" class="form-control">
+                        <option value="Low" ${vuln?.severity === 'Low' ? 'selected' : ''}>Low</option>
+                        <option value="Medium" ${vuln?.severity === 'Medium' ? 'selected' : ''}>Medium</option>
+                        <option value="High" ${vuln?.severity === 'High' ? 'selected' : ''}>High</option>
+                        <option value="Critical" ${vuln?.severity === 'Critical' ? 'selected' : ''}>Critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="vulnDueDate" value="${vuln?.due_date || ''}" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Assignment Group</label>
+                    <input type="text" id="vulnAssignment" value="${vuln?.assignment_group || ''}" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="vulnStatus" class="form-control">
+                        <option value="Open" ${vuln?.status === 'Open' ? 'selected' : ''}>Open</option>
+                        <option value="In Progress" ${vuln?.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="Due" ${vuln?.status === 'Due' ? 'selected' : ''}>Due</option>
+                        <option value="Breached" ${vuln?.status === 'Breached' ? 'selected' : ''}>Breached</option>
+                        <option value="Resolved" ${vuln?.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="vulnDescription" class="form-control" rows="4">${vuln?.description || ''}</textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="window.vulnerabilitiesManager.closeModal()">Cancel</button>
