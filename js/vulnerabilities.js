@@ -3,19 +3,16 @@ class VulnerabilitiesManager {
     constructor(database) {
         this.db = database;
         this.initialized = false;
+        this.currentWorkbook = null;
     }
 
     async init() {
-        console.log('[VULN] init called');
         this.attachEventListeners();
         await this.loadVulnerabilities();
         this.initialized = true;
-        console.log('[VULN] initialized');
     }
 
     attachEventListeners() {
-        console.log('[VULN] attachEventListeners');
-        
         const addBtn = document.getElementById('addVulnerabilityBtn');
         if (addBtn) {
             addBtn.onclick = () => this.showVulnerabilityModal();
@@ -35,22 +32,17 @@ class VulnerabilitiesManager {
     }
 
     async loadVulnerabilities() {
-        console.log('[VULN] loadVulnerabilities');
         try {
             const vulns = await this.db.select('vulnerabilities');
-            console.log('[VULN] loaded:', vulns.length);
             this.renderVulnerabilities(vulns);
         } catch (e) {
-            console.error('[VULN] load error:', e);
+            console.error('Load error:', e);
         }
     }
 
     renderVulnerabilities(vulnerabilities) {
         const tbody = document.getElementById('vulnerabilitiesTableBody');
-        if (!tbody) {
-            console.log('[VULN] tbody not found');
-            return;
-        }
+        if (!tbody) return;
         
         if (!vulnerabilities || vulnerabilities.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">No vulnerabilities found</td></tr>';
@@ -161,25 +153,26 @@ class VulnerabilitiesManager {
 
     async handleXlsxImport(event) {
         const file = event.target.files[0];
-        console.log('[VULN] File selected:', file?.name, 'XLSX available:', typeof XLSX !== 'undefined');
-        alert('Import triggered! File: ' + file?.name + ', XLSX: ' + typeof XLSX);
-        
         if (!file) return;
-        if (typeof XLSX === 'undefined') { alert('Excel library not loaded'); return; }
+        
+        if (typeof XLSX === 'undefined') { 
+            alert('Excel library not loaded. Please refresh the page.'); 
+            return; 
+        }
         
         const reader = new FileReader();
         reader.onload = (e) => {
-            console.log('[VULN] File read complete, parsing...');
             try {
                 const data = new Uint8Array(e.target.result);
                 const wb = XLSX.read(data, {type:'array'});
-                console.log('[VULN] Workbook sheets:', wb.SheetNames, 'count:', wb.SheetNames.length);
                 
-                // Always show sheet selector so user can choose
-                console.log('[VULN] Showing sheet selector');
+                // Store workbook for later use
+                this.currentWorkbook = wb;
+                
+                // Show sheet selector
                 this.showSheetSelector(wb);
             } catch(err) { 
-                console.error('[VULN] Parse error:', err); 
+                console.error('Parse error:', err);
                 alert('Error reading file: ' + err.message); 
             }
         };
@@ -189,41 +182,58 @@ class VulnerabilitiesManager {
     }
 
     showSheetSelector(workbook) {
-        console.log('[VULN] showSheetSelector called, sheets:', workbook.SheetNames);
-        alert('Sheet selector called! Sheets: ' + workbook.SheetNames.join(', '));
         const opts = workbook.SheetNames.map((n,i) => `<option value="${i}">${i+1}. ${n}</option>`).join('');
-        const html = `<div class="modal active">
-            <div class="modal-header"><h3>Select Sheet</h3><button class="modal-close" onclick="this.closest('.modal').remove()">×</button></div>
-            <div class="modal-body"><p>Choose sheet to import:</p><select id="sheetIdx" class="form-control">${opts}</select></div>
+        
+        // Get preview data from first sheet
+        let previewHtml = '';
+        try {
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(firstSheet, {header:1});
+            if (data.length > 0) {
+                const headers = data[0].slice(0, 5).join(' | ');
+                previewHtml = `<p style="font-size:12px;color:#666;">Headers: ${headers}</p>`;
+                previewHtml += `<p style="font-size:12px;color:#666;">Total rows: ${data.length - 1}</p>`;
+            }
+        } catch(e) {}
+        
+        const html = `<div class="modal active" id="sheetSelectorModal">
+            <div class="modal-header">
+                <h3>Select Excel Sheet to Import</h3>
+                <button class="modal-close" onclick="document.getElementById('sheetSelectorModal').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Available Sheets:</strong></p>
+                <select id="sheetSelect" class="form-control" style="margin-bottom:15px;">${opts}</select>
+                ${previewHtml}
+                <div style="background:#f5f5f5;padding:10px;border-radius:4px;font-size:12px;">
+                    <strong>Instructions:</strong> Select the sheet containing your vulnerability data, then click "Import" to continue.
+                </div>
+            </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
-                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.doImportSheet()">Import</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('sheetSelectorModal').remove()">Cancel</button>
+                <button class="btn btn-primary" id="importSheetBtn">Import Selected Sheet</button>
             </div>
         </div>`;
+        
         document.getElementById('modalContainer').innerHTML = html;
-        this.currentWorkbook = workbook;
-    }
-
-    doImportSheet() {
-        const idx = parseInt(document.getElementById('sheetIdx').value);
-        this.processSheet(this.currentWorkbook, this.currentWorkbook.SheetNames[idx]);
-        document.getElementById('modalContainer').innerHTML = '';
+        
+        // Attach event listener
+        document.getElementById('importSheetBtn').onclick = () => {
+            const idx = parseInt(document.getElementById('sheetSelect').value);
+            this.processSheet(workbook, workbook.SheetNames[idx]);
+            document.getElementById('sheetSelectorModal').remove();
+        };
     }
 
     processSheet(workbook, sheetName) {
-        console.log('[VULN] processSheet called for:', sheetName);
         try {
             const sheet = workbook.Sheets[sheetName];
-            console.log('[VULN] Sheet found:', !!sheet);
-            
             const json = XLSX.utils.sheet_to_json(sheet);
-            console.log('[VULN] Rows parsed:', json.length);
             
             let count = 0;
             
             for (const row of json) {
                 const title = row['Request Item'] || row['request_item'] || row['Request'] || row['Item'] || '';
-                console.log('[VULN] Row title:', title);
                 if (!title) continue;
                 
                 const vuln = {
@@ -239,11 +249,10 @@ class VulnerabilitiesManager {
                 count++;
             }
             
-            console.log('[VULN] Imported count:', count);
             this.loadVulnerabilities();
-            alert(`Imported ${count} items`);
+            alert(`Import complete! ${count} items imported.`);
         } catch(e) { 
-            console.error('[VULN] Import error:', e); 
+            console.error('Import error:', e);
             alert('Import error: ' + e.message); 
         }
     }
@@ -276,18 +285,13 @@ class VulnerabilitiesManager {
 }
 
 async function initVulnerabilitiesManager() {
-    console.log('[VULN] init start, dbManager:', !!window.dbManager);
+    console.log('[VULN] init start');
     try {
-        if (window.dbManager?.ready) {
-            console.log('[VULN] waiting db ready');
-            await window.dbManager.ready;
-        }
+        if (window.dbManager?.ready) await window.dbManager.ready;
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
-        console.log('[VULN] init complete');
     } catch(e) {
         console.error('[VULN] init error:', e);
-        window.vulnerabilitiesManager = {initialized:true};
     }
 }
 
