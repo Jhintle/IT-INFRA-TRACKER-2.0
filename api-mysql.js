@@ -265,9 +265,9 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'No valid fields to update' });
         }
 
-        // Add updated_at timestamp
+        // Add updated_at timestamp (date only)
         updateFields.push('`updated_at` = ?');
-        updateValues.push(new Date().toISOString().replace('T', ' ').replace('Z', ''));
+        updateValues.push(new Date().toISOString().split('T')[0]);
         
         // Add id for WHERE clause
         updateValues.push(id);
