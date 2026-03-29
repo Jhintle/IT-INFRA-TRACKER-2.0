@@ -287,16 +287,35 @@ class VulnerabilitiesManager {
 async function initVulnerabilitiesManager() {
     console.log('[VULN] init start');
     try {
-        if (window.dbManager?.ready) await window.dbManager.ready;
+        await window.dbManager.ready;
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
-        
-        window.handleXlsxImportSafe = (e) => window.vulnerabilitiesManager.handleXlsxImport(e);
-        window.showVulnerabilityModalSafe = () => window.vulnerabilitiesManager.showVulnerabilityModal();
-        console.log('[VULN] init complete');
+        console.log('[VULN] init complete - manager ready');
     } catch(e) {
         console.error('[VULN] init error:', e);
     }
 }
 
-document.addEventListener('DOMContentLoaded', initVulnerabilitiesManager);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVulnerabilitiesManager);
+} else {
+    initVulnerabilitiesManager();
+}
+
+window.handleXlsxImportSafe = function(e) {
+    console.log('[VULN] handleXlsxImportSafe called', e);
+    if (!window.vulnerabilitiesManager) {
+        alert('Vulnerabilities manager not initialized. Please refresh the page.');
+        return;
+    }
+    window.vulnerabilitiesManager.handleXlsxImport(e);
+};
+
+window.showVulnerabilityModalSafe = function() {
+    console.log('[VULN] showVulnerabilityModalSafe called');
+    if (!window.vulnerabilitiesManager) {
+        alert('Vulnerabilities manager not initialized. Please refresh the page.');
+        return;
+    }
+    window.vulnerabilitiesManager.showVulnerabilityModal();
+};
