@@ -161,21 +161,32 @@ class VulnerabilitiesManager {
 
     async handleXlsxImport(event) {
         const file = event.target.files[0];
-        if (!file || typeof XLSX === 'undefined') { alert('Excel not available'); return; }
+        console.log('[VULN] File selected:', file?.name, 'XLSX available:', typeof XLSX !== 'undefined');
+        
+        if (!file) return;
+        if (typeof XLSX === 'undefined') { alert('Excel library not loaded'); return; }
         
         const reader = new FileReader();
         reader.onload = (e) => {
+            console.log('[VULN] File read complete, parsing...');
             try {
-                const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-                console.log('[VULN] sheets:', wb.SheetNames);
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type:'array'});
+                console.log('[VULN] Workbook sheets:', wb.SheetNames, 'count:', wb.SheetNames.length);
                 
                 if (wb.SheetNames.length > 1) {
+                    console.log('[VULN] Multiple sheets - showing selector');
                     this.showSheetSelector(wb);
                 } else {
+                    console.log('[VULN] Single sheet - processing');
                     this.processSheet(wb, wb.SheetNames[0]);
                 }
-            } catch(err) { alert('Error: ' + err.message); }
+            } catch(err) { 
+                console.error('[VULN] Parse error:', err); 
+                alert('Error reading file: ' + err.message); 
+            }
         };
+        reader.onerror = () => { alert('Failed to read file'); };
         reader.readAsArrayBuffer(file);
         event.target.value = '';
     }
@@ -201,12 +212,19 @@ class VulnerabilitiesManager {
     }
 
     processSheet(workbook, sheetName) {
+        console.log('[VULN] processSheet called for:', sheetName);
         try {
-            const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+            const sheet = workbook.Sheets[sheetName];
+            console.log('[VULN] Sheet found:', !!sheet);
+            
+            const json = XLSX.utils.sheet_to_json(sheet);
+            console.log('[VULN] Rows parsed:', json.length);
+            
             let count = 0;
             
             for (const row of json) {
                 const title = row['Request Item'] || row['request_item'] || row['Request'] || row['Item'] || '';
+                console.log('[VULN] Row title:', title);
                 if (!title) continue;
                 
                 const vuln = {
@@ -222,9 +240,13 @@ class VulnerabilitiesManager {
                 count++;
             }
             
+            console.log('[VULN] Imported count:', count);
             this.loadVulnerabilities();
             alert(`Imported ${count} items`);
-        } catch(e) { alert('Import error: ' + e.message); }
+        } catch(e) { 
+            console.error('[VULN] Import error:', e); 
+            alert('Import error: ' + e.message); 
+        }
     }
 
     mapPriority(p) {
@@ -255,11 +277,15 @@ class VulnerabilitiesManager {
 }
 
 async function initVulnerabilitiesManager() {
-    console.log('[VULN] init start');
+    console.log('[VULN] init start, dbManager:', !!window.dbManager);
     try {
-        if (window.dbManager?.ready) await window.dbManager.ready;
+        if (window.dbManager?.ready) {
+            console.log('[VULN] waiting db ready');
+            await window.dbManager.ready;
+        }
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
+        console.log('[VULN] init complete');
     } catch(e) {
         console.error('[VULN] init error:', e);
         window.vulnerabilitiesManager = {initialized:true};
