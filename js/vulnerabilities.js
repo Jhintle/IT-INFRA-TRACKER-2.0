@@ -1008,34 +1008,15 @@ class VulnerabilitiesManager {
     parseExcelDate(excelDate) {
         if (!excelDate || excelDate === '') return '';
         
-        try {
-            // Handle Excel serial date numbers
-            if (typeof excelDate === 'number') {
-                const epoch = new Date(1899, 11, 30);
-                const date = new Date(epoch.getTime() + excelDate * 24 * 60 * 60 * 1000);
-                return date.toISOString().split('T')[0];
-            }
-            
-            // Handle string dates (with or without time)
-            let dateStr = String(excelDate).trim();
-            
-            // If it contains both date and time, extract just the date part
-            if (dateStr.includes(' ') || dateStr.includes('T')) {
-                dateStr = dateStr.split(' ')[0].split('T')[0];
-            }
-            
-            // Try to parse as date
-            const date = new Date(dateStr);
-            if (!isNaN(date.getTime())) {
-                return date.toISOString().split('T')[0];
-            }
-            
-            // Return original if parsing fails
-            return dateStr;
-        } catch (e) {
-            console.warn('Failed to parse date:', excelDate);
-            return String(excelDate);
+        // Handle Excel serial date numbers
+        if (typeof excelDate === 'number') {
+            const epoch = new Date(1899, 11, 30);
+            const date = new Date(epoch.getTime() + excelDate * 24 * 60 * 60 * 1000);
+            return date.toISOString().slice(0, 19).replace('T', ' ');
         }
+        
+        // Return as-is for string dates (including date+time)
+        return String(excelDate).trim();
     }
 
     mapPriorityToSeverity(priority) {
