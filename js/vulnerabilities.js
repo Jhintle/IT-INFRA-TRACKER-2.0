@@ -290,6 +290,10 @@ async function initVulnerabilitiesManager() {
         if (window.dbManager?.ready) await window.dbManager.ready;
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
+        
+        window.handleXlsxImportSafe = (e) => window.vulnerabilitiesManager.handleXlsxImport(e);
+        window.showVulnerabilityModalSafe = () => window.vulnerabilitiesManager.showVulnerabilityModal();
+        console.log('[VULN] init complete');
     } catch(e) {
         console.error('[VULN] init error:', e);
     }
