@@ -234,27 +234,13 @@ class VulnerabilitiesManager {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
                 
-                for (const row of json) {
-                    const title = row['Request Item'] || row['request_item'] || row['Request'] || '';
-                    if (!title) continue;
-                    
-                    const vuln = {
-                        title: String(title),
-                        severity: this.mapPriorityToSeverity(row['Priority'] || row['priority'] || ''),
-                        description: row['Description'] || row['description'] || '',
-                        assignment_group: row['Assignment Group'] || row['assignment_group'] || '',
-                        due_date: this.parseExcelDate(row['Due Date'] || row['due_date']),
-                        status: 'Open'
-                    };
-                    
-                    await this.db.insert('vulnerabilities', vuln);
+                // If multiple sheets, show selector
+                if (workbook.SheetNames.length > 1) {
+                    this.showSheetSelector(workbook);
+                } else {
+                    this.processSheet(workbook, workbook.SheetNames[0]);
                 }
-                
-                await this.loadVulnerabilities();
-                alert('Import complete');
             } catch (err) {
                 console.error('Import error:', err);
                 alert('Import failed: ' + err.message);
@@ -264,11 +250,74 @@ class VulnerabilitiesManager {
         event.target.value = '';
     }
 
+    showSheetSelector(workbook) {
+        const options = workbook.SheetNames.map((name, i) => 
+            `<option value="${i}">${i + 1}. ${name}</option>`
+        ).join('');
+        
+        const modalHtml = `<div class="modal active">
+            <div class="modal-header">
+                <h3>Select Sheet to Import</h3>
+                <button class="modal-close" onclick="window.vulnerabilitiesManager.closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>This workbook has multiple sheets. Select which one to import:</p>
+                <select id="sheetSelect" class="form-control">${options}</select>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="window.vulnerabilitiesManager.closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.importSelectedSheet()">Import</button>
+            </div>
+        </div>`;
+        
+        document.getElementById('modalContainer').innerHTML = modalHtml;
+        this.currentWorkbook = workbook;
+    }
+
+    importSelectedSheet() {
+        const sheetIndex = parseInt(document.getElementById('sheetSelect').value);
+        const sheetName = this.currentWorkbook.SheetNames[sheetIndex];
+        this.closeModal();
+        this.processSheet(this.currentWorkbook, sheetName);
+        this.currentWorkbook = null;
+    }
+
+    processSheet(workbook, sheetName) {
+        try {
+            const sheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            
+            let imported = 0;
+            for (const row of json) {
+                const title = row['Request Item'] || row['request_item'] || row['Request'] || '';
+                if (!title) continue;
+                
+                const vuln = {
+                    title: String(title),
+                    severity: this.mapPriorityToSeverity(row['Priority'] || row['priority'] || ''),
+                    description: row['Description'] || row['description'] || '',
+                    assignment_group: row['Assignment Group'] || row['assignment_group'] || '',
+                    due_date: this.parseExcelDate(row['Due Date'] || row['due_date']),
+                    status: 'Open'
+                };
+                
+                await this.db.insert('vulnerabilities', vuln);
+                imported++;
+            }
+            
+            this.loadVulnerabilities();
+            alert(`Import complete! ${imported} items imported.`);
+        } catch (err) {
+            console.error('Import error:', err);
+            alert('Import failed: ' + err.message);
+        }
+    }
+
     mapPriorityToSeverity(priority) {
         const p = String(priority).toLowerCase();
-        if (p.includes('critical') || p.includes('1') || p.includes('high')) return 'Critical';
-        if (p.includes('high') || p.includes('2')) return 'High';
-        if (p.includes('medium') || p.includes('3') || p.includes('moderate')) return 'Medium';
+        if (p.includes('critical') || p.includes('1')) return 'Critical';
+        if (p.includes('high') || p === '2') return 'High';
+        if (p.includes('medium') || p === '3' || p.includes('moderate')) return 'Medium';
         return 'Low';
     }
 
