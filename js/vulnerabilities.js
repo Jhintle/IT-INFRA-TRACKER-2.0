@@ -1,4 +1,5 @@
 // Vulnerability Reports Management Module
+console.log('[VULN] vulnerabilities.js loaded');
 class VulnerabilitiesManager {
     constructor(database) {
         this.db = database;
