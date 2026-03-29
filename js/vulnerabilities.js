@@ -6,7 +6,7 @@ class VulnerabilitiesManager {
     }
 
     async init() {
-        console.log('VulnerabilitiesManager: init called');
+        console.log('VulnerabilitiesManager: init called, db:', this.db);
         this.attachEventListeners();
         await this.loadVulnerabilities();
         this.initialized = true;
@@ -349,9 +349,12 @@ async function initVulnerabilitiesManager() {
     console.log('initVulnerabilitiesManager: starting');
     try {
         if (window.dbManager && window.dbManager.ready) {
+            console.log('initVulnerabilitiesManager: waiting for db');
             await window.dbManager.ready;
+            console.log('initVulnerabilitiesManager: db ready');
         }
         
+        console.log('initVulnerabilitiesManager: creating manager');
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
         console.log('initVulnerabilitiesManager: complete');
