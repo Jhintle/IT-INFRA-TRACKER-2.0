@@ -162,6 +162,7 @@ class VulnerabilitiesManager {
     async handleXlsxImport(event) {
         const file = event.target.files[0];
         console.log('[VULN] File selected:', file?.name, 'XLSX available:', typeof XLSX !== 'undefined');
+        alert('Import triggered! File: ' + file?.name + ', XLSX: ' + typeof XLSX);
         
         if (!file) return;
         if (typeof XLSX === 'undefined') { alert('Excel library not loaded'); return; }
@@ -188,6 +189,8 @@ class VulnerabilitiesManager {
     }
 
     showSheetSelector(workbook) {
+        console.log('[VULN] showSheetSelector called, sheets:', workbook.SheetNames);
+        alert('Sheet selector called! Sheets: ' + workbook.SheetNames.join(', '));
         const opts = workbook.SheetNames.map((n,i) => `<option value="${i}">${i+1}. ${n}</option>`).join('');
         const html = `<div class="modal active">
             <div class="modal-header"><h3>Select Sheet</h3><button class="modal-close" onclick="this.closest('.modal').remove()">×</button></div>
