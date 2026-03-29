@@ -6,362 +6,263 @@ class VulnerabilitiesManager {
     }
 
     async init() {
-        console.log('VulnerabilitiesManager: init called, db:', this.db);
+        console.log('[VULN] init called');
         this.attachEventListeners();
         await this.loadVulnerabilities();
         this.initialized = true;
-        console.log('VulnerabilitiesManager: initialized');
+        console.log('[VULN] initialized');
     }
 
     attachEventListeners() {
+        console.log('[VULN] attachEventListeners');
+        
         const addBtn = document.getElementById('addVulnerabilityBtn');
         if (addBtn) {
-            addBtn.addEventListener('click', () => this.showVulnerabilityModal());
+            addBtn.onclick = () => this.showVulnerabilityModal();
         }
         
         const importBtn = document.getElementById('importXlsxBtn');
         const fileInput = document.getElementById('xlsxImportInput');
         if (importBtn && fileInput) {
-            importBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => this.handleXlsxImport(e));
+            importBtn.onclick = () => fileInput.click();
+            fileInput.onchange = (e) => this.handleXlsxImport(e);
         }
         
         const exportBtn = document.getElementById('exportVulnerabilitiesBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportVulnerabilities());
+            exportBtn.onclick = () => this.exportVulnerabilities();
         }
-        
-        // Attach edit/delete listeners after render
-        this.attachRowListeners();
-    }
-    
-    attachRowListeners() {
-        setTimeout(() => {
-            document.querySelectorAll('.vulnerability-edit-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    const id = e.currentTarget.dataset.id;
-                    this.editVulnerability(id);
-                };
-            });
-            document.querySelectorAll('.vulnerability-delete-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    const id = e.currentTarget.dataset.id;
-                    this.deleteVulnerability(id);
-                };
-            });
-        }, 100);
     }
 
     async loadVulnerabilities() {
+        console.log('[VULN] loadVulnerabilities');
         try {
-            console.log('Loading vulnerabilities... db:', this.db);
-            const vulnerabilities = await this.db.select('vulnerabilities');
-            console.log('Loaded vulnerabilities count:', vulnerabilities.length);
-            this.renderVulnerabilities(vulnerabilities);
-            this.attachRowListeners();
-        } catch (error) {
-            console.error('Error loading vulnerabilities:', error);
+            const vulns = await this.db.select('vulnerabilities');
+            console.log('[VULN] loaded:', vulns.length);
+            this.renderVulnerabilities(vulns);
+        } catch (e) {
+            console.error('[VULN] load error:', e);
         }
     }
 
     renderVulnerabilities(vulnerabilities) {
         const tbody = document.getElementById('vulnerabilitiesTableBody');
-        if (!tbody) return;
+        if (!tbody) {
+            console.log('[VULN] tbody not found');
+            return;
+        }
         
-        if (vulnerabilities.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7">No vulnerabilities found</td></tr>';
+        if (!vulnerabilities || vulnerabilities.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">No vulnerabilities found</td></tr>';
             return;
         }
         
         tbody.innerHTML = vulnerabilities.map(v => {
-            const dueDate = v.due_date || '';
-            const dueDateObj = dueDate ? new Date(dueDate) : null;
+            const due = v.due_date || '';
+            const dueDate = due ? new Date(due) : null;
             const today = new Date();
             today.setHours(0,0,0,0);
-            const isOverdue = dueDateObj && dueDateObj < today;
+            const isOverdue = dueDate && dueDate < today;
             const status = isOverdue ? 'Breached' : (v.status || 'Open');
-            
-            const formattedDate = dueDateObj ? dueDateObj.toLocaleDateString() : '-';
+            const dateStr = dueDate ? dueDate.toLocaleDateString() : '-';
             
             return `<tr data-vulnerability-id="${v.id}">
                 <td><strong>${v.title || ''}</strong></td>
                 <td><span class="badge badge-${this.getSeverityClass(v.severity)}">${v.severity || 'Unknown'}</span></td>
-                <td title="${v.description || ''}">${(v.description || '').substring(0, 100)}${(v.description || '').length > 100 ? '...' : ''}</td>
+                <td>${(v.description || '').substring(0, 80)}${(v.description || '').length > 80 ? '...' : ''}</td>
                 <td>${v.assignment_group || '-'}</td>
-                <td>${formattedDate}${isOverdue ? ' <span style="color:#ef4444;font-weight:bold;">⚠️ OVERDUE</span>' : ''}</td>
+                <td>${dateStr}${isOverdue ? ' <span style="color:#ef4444;font-weight:bold;">⚠️</span>' : ''}</td>
                 <td><span class="badge badge-${this.getStatusClass(status)}">${status}</span></td>
                 <td>
-                    <div class="action-buttons">
-                        <button class="edit-btn vulnerability-edit-btn" data-id="${v.id}" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="delete-btn vulnerability-delete-btn" data-id="${v.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
+                    <button class="btn btn-sm" onclick="window.vulnerabilitiesManager.editVulnerability(${v.id})">✏️</button>
+                    <button class="btn btn-sm" onclick="window.vulnerabilitiesManager.deleteVulnerability(${v.id})">🗑️</button>
                 </td>
             </tr>`;
         }).join('');
     }
 
-    getSeverityClass(severity) {
-        const map = { 'Critical': 'danger', 'High': 'warning', 'Medium': 'info', 'Low': 'success' };
-        return map[severity] || 'secondary';
+    getSeverityClass(s) {
+        const m = {'Critical':'danger','High':'warning','Medium':'info','Low':'success'};
+        return m[s] || 'secondary';
     }
 
-    getStatusClass(status) {
-        const map = { 'Open': 'success', 'Due': 'warning', 'Breached': 'danger', 'Resolved': 'secondary' };
-        return map[status] || 'secondary';
+    getStatusClass(s) {
+        const m = {'Open':'success','Due':'warning','Breached':'danger','Resolved':'secondary'};
+        return m[s] || 'secondary';
+    }
+
+    showVulnerabilityModal(vuln = null) {
+        const isEdit = !!vuln;
+        const html = `<div class="modal active">
+            <div class="modal-header"><h3>${isEdit ? 'Edit' : 'Add'} Vulnerability</h3><button class="modal-close" onclick="this.closest('.modal').remove()">×</button></div>
+            <div class="modal-body">
+                ${isEdit ? `<input type="hidden" id="vulnId" value="${vuln.id}">` : ''}
+                <div class="form-group"><label>Request Item *</label><input type="text" id="vulnTitle" value="${vuln?.title || ''}" class="form-control"></div>
+                <div class="form-group"><label>Severity</label><select id="vulnSeverity" class="form-control">
+                    <option value="Low" ${vuln?.severity==='Low'?'selected':''}>Low</option>
+                    <option value="Medium" ${vuln?.severity==='Medium'?'selected':''}>Medium</option>
+                    <option value="High" ${vuln?.severity==='High'?'selected':''}>High</option>
+                    <option value="Critical" ${vuln?.severity==='Critical'?'selected':''}>Critical</option>
+                </select></div>
+                <div class="form-group"><label>Due Date</label><input type="date" id="vulnDueDate" value="${vuln?.due_date || ''}" class="form-control"></div>
+                <div class="form-group"><label>Assignment Group</label><input type="text" id="vulnAssignment" value="${vuln?.assignment_group || ''}" class="form-control"></div>
+                <div class="form-group"><label>Status</label><select id="vulnStatus" class="form-control">
+                    <option value="Open" ${vuln?.status==='Open'?'selected':''}>Open</option>
+                    <option value="In Progress" ${vuln?.status==='In Progress'?'selected':''}>In Progress</option>
+                    <option value="Due" ${vuln?.status==='Due'?'selected':''}>Due</option>
+                    <option value="Breached" ${vuln?.status==='Breached'?'selected':''}>Breached</option>
+                    <option value="Resolved" ${vuln?.status==='Resolved'?'selected':''}>Resolved</option>
+                </select></div>
+                <div class="form-group"><label>Description</label><textarea id="vulnDescription" class="form-control" rows="3">${vuln?.description || ''}</textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.saveVulnerability()">Save</button>
+            </div>
+        </div>`;
+        document.getElementById('modalContainer').innerHTML = html;
     }
 
     async saveVulnerability() {
-        const vulnId = document.getElementById('vulnId')?.value;
+        const id = document.getElementById('vulnId')?.value;
         const vuln = {
             title: document.getElementById('vulnTitle').value,
             severity: document.getElementById('vulnSeverity').value,
             due_date: document.getElementById('vulnDueDate').value,
             assignment_group: document.getElementById('vulnAssignment').value,
-            description: document.getElementById('vulnDescription').value,
-            status: document.getElementById('vulnStatus')?.value || 'Open'
+            status: document.getElementById('vulnStatus').value,
+            description: document.getElementById('vulnDescription').value
         };
         
-        if (!vuln.title) {
-            alert('Title is required');
-            return;
-        }
+        if (!vuln.title) { alert('Title required'); return; }
         
-        if (vulnId) {
-            await this.db.update('vulnerabilities', vulnId, vuln);
+        if (id) {
+            await this.db.update('vulnerabilities', id, vuln);
         } else {
             await this.db.insert('vulnerabilities', vuln);
         }
         
-        this.closeModal();
+        document.getElementById('modalContainer').innerHTML = '';
         await this.loadVulnerabilities();
     }
 
     async editVulnerability(id) {
         const vulns = await this.db.select('vulnerabilities');
-        const vuln = vulns.find(v => v.id === id);
-        if (!vuln) return;
-        
-        this.showVulnerabilityModal(vuln);
+        const vuln = vulns.find(v => v.id == id);
+        if (vuln) this.showVulnerabilityModal(vuln);
     }
 
     async deleteVulnerability(id) {
-        if (!confirm('Are you sure you want to delete this vulnerability?')) return;
-        await this.db.delete('vulnerabilities', id);
-        await this.loadVulnerabilities();
-    }
-
-    showVulnerabilityModal(vuln = null) {
-        const isEdit = !!vuln;
-        const modalHtml = `<div class="modal active">
-            <div class="modal-header">
-                <h3>${isEdit ? 'Edit' : 'Add'} Vulnerability</h3>
-                <button class="modal-close" onclick="window.vulnerabilitiesManager.closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                ${isEdit ? `<input type="hidden" id="vulnId" value="${vuln.id}">` : ''}
-                <div class="form-group">
-                    <label>Request Item *</label>
-                    <input type="text" id="vulnTitle" value="${vuln?.title || ''}" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Severity</label>
-                    <select id="vulnSeverity" class="form-control">
-                        <option value="Low" ${vuln?.severity === 'Low' ? 'selected' : ''}>Low</option>
-                        <option value="Medium" ${vuln?.severity === 'Medium' ? 'selected' : ''}>Medium</option>
-                        <option value="High" ${vuln?.severity === 'High' ? 'selected' : ''}>High</option>
-                        <option value="Critical" ${vuln?.severity === 'Critical' ? 'selected' : ''}>Critical</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Due Date</label>
-                    <input type="date" id="vulnDueDate" value="${vuln?.due_date || ''}" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label>Assignment Group</label>
-                    <input type="text" id="vulnAssignment" value="${vuln?.assignment_group || ''}" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select id="vulnStatus" class="form-control">
-                        <option value="Open" ${vuln?.status === 'Open' ? 'selected' : ''}>Open</option>
-                        <option value="In Progress" ${vuln?.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                        <option value="Due" ${vuln?.status === 'Due' ? 'selected' : ''}>Due</option>
-                        <option value="Breached" ${vuln?.status === 'Breached' ? 'selected' : ''}>Breached</option>
-                        <option value="Resolved" ${vuln?.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="vulnDescription" class="form-control" rows="4">${vuln?.description || ''}</textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="window.vulnerabilitiesManager.closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.saveVulnerability()">Save</button>
-            </div>
-        </div>`;
-        document.getElementById('modalContainer').innerHTML = modalHtml;
-    }
-
-    closeModal() {
-        document.getElementById('modalContainer').innerHTML = '';
-    }
-
-    async saveVulnerability() {
-        const vuln = {
-            title: document.getElementById('vulnTitle').value,
-            severity: document.getElementById('vulnSeverity').value,
-            due_date: document.getElementById('vulnDueDate').value,
-            assignment_group: document.getElementById('vulnAssignment').value,
-            description: document.getElementById('vulnDescription').value,
-            status: 'Open'
-        };
-        
-        await this.db.insert('vulnerabilities', vuln);
-        this.closeModal();
-        await this.loadVulnerabilities();
+        if (confirm('Delete this vulnerability?')) {
+            await this.db.delete('vulnerabilities', id);
+            await this.loadVulnerabilities();
+        }
     }
 
     async handleXlsxImport(event) {
         const file = event.target.files[0];
-        if (!file) return;
-        
-        if (typeof XLSX === 'undefined') {
-            alert('Excel library not loaded');
-            return;
-        }
+        if (!file || typeof XLSX === 'undefined') { alert('Excel not available'); return; }
         
         const reader = new FileReader();
-        reader.onload = async (e) => {
+        reader.onload = (e) => {
             try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+                console.log('[VULN] sheets:', wb.SheetNames);
                 
-                // If multiple sheets, show selector
-                if (workbook.SheetNames.length > 1) {
-                    this.showSheetSelector(workbook);
+                if (wb.SheetNames.length > 1) {
+                    this.showSheetSelector(wb);
                 } else {
-                    this.processSheet(workbook, workbook.SheetNames[0]);
+                    this.processSheet(wb, wb.SheetNames[0]);
                 }
-            } catch (err) {
-                console.error('Import error:', err);
-                alert('Import failed: ' + err.message);
-            }
+            } catch(err) { alert('Error: ' + err.message); }
         };
         reader.readAsArrayBuffer(file);
         event.target.value = '';
     }
 
     showSheetSelector(workbook) {
-        const options = workbook.SheetNames.map((name, i) => 
-            `<option value="${i}">${i + 1}. ${name}</option>`
-        ).join('');
-        
-        const modalHtml = `<div class="modal active">
-            <div class="modal-header">
-                <h3>Select Sheet to Import</h3>
-                <button class="modal-close" onclick="window.vulnerabilitiesManager.closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p>This workbook has multiple sheets. Select which one to import:</p>
-                <select id="sheetSelect" class="form-control">${options}</select>
-            </div>
+        const opts = workbook.SheetNames.map((n,i) => `<option value="${i}">${i+1}. ${n}</option>`).join('');
+        const html = `<div class="modal active">
+            <div class="modal-header"><h3>Select Sheet</h3><button class="modal-close" onclick="this.closest('.modal').remove()">×</button></div>
+            <div class="modal-body"><p>Choose sheet to import:</p><select id="sheetIdx" class="form-control">${opts}</select></div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="window.vulnerabilitiesManager.closeModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.importSelectedSheet()">Import</button>
+                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.doImportSheet()">Import</button>
             </div>
         </div>`;
-        
-        document.getElementById('modalContainer').innerHTML = modalHtml;
+        document.getElementById('modalContainer').innerHTML = html;
         this.currentWorkbook = workbook;
     }
 
-    importSelectedSheet() {
-        const sheetIndex = parseInt(document.getElementById('sheetSelect').value);
-        const sheetName = this.currentWorkbook.SheetNames[sheetIndex];
-        this.closeModal();
-        this.processSheet(this.currentWorkbook, sheetName);
-        this.currentWorkbook = null;
+    doImportSheet() {
+        const idx = parseInt(document.getElementById('sheetIdx').value);
+        this.processSheet(this.currentWorkbook, this.currentWorkbook.SheetNames[idx]);
+        document.getElementById('modalContainer').innerHTML = '';
     }
 
     processSheet(workbook, sheetName) {
         try {
-            const sheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(sheet);
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+            let count = 0;
             
-            let imported = 0;
             for (const row of json) {
-                const title = row['Request Item'] || row['request_item'] || row['Request'] || '';
+                const title = row['Request Item'] || row['request_item'] || row['Request'] || row['Item'] || '';
                 if (!title) continue;
                 
                 const vuln = {
                     title: String(title),
-                    severity: this.mapPriorityToSeverity(row['Priority'] || row['priority'] || ''),
+                    severity: this.mapPriority(row['Priority'] || row['priority'] || ''),
                     description: row['Description'] || row['description'] || '',
                     assignment_group: row['Assignment Group'] || row['assignment_group'] || '',
-                    due_date: this.parseExcelDate(row['Due Date'] || row['due_date']),
+                    due_date: this.parseDate(row['Due Date'] || row['due_date']),
                     status: 'Open'
                 };
                 
-                await this.db.insert('vulnerabilities', vuln);
-                imported++;
+                this.db.insert('vulnerabilities', vuln);
+                count++;
             }
             
             this.loadVulnerabilities();
-            alert(`Import complete! ${imported} items imported.`);
-        } catch (err) {
-            console.error('Import error:', err);
-            alert('Import failed: ' + err.message);
-        }
+            alert(`Imported ${count} items`);
+        } catch(e) { alert('Import error: ' + e.message); }
     }
 
-    mapPriorityToSeverity(priority) {
-        const p = String(priority).toLowerCase();
-        if (p.includes('critical') || p.includes('1')) return 'Critical';
-        if (p.includes('high') || p === '2') return 'High';
-        if (p.includes('medium') || p === '3' || p.includes('moderate')) return 'Medium';
+    mapPriority(p) {
+        const s = String(p).toLowerCase();
+        if (s.includes('critical') || s === '1') return 'Critical';
+        if (s.includes('high') || s === '2') return 'High';
+        if (s.includes('medium') || s.includes('moderate') || s === '3') return 'Medium';
         return 'Low';
     }
 
-    parseExcelDate(dateValue) {
-        if (!dateValue) return '';
-        if (dateValue instanceof Date) return dateValue.toISOString().split('T')[0];
-        if (typeof dateValue === 'string') return dateValue.substring(0, 10);
-        return String(dateValue);
+    parseDate(v) {
+        if (!v) return '';
+        if (v instanceof Date) return v.toISOString().split('T')[0];
+        if (typeof v === 'string') return v.substring(0,10);
+        return String(v);
     }
 
     async exportVulnerabilities() {
         const vulns = await this.db.select('vulnerabilities');
         const csv = 'Request Item,Severity,Description,Assignment Group,Due Date,Status\n' + 
-            vulns.map(v => `"${v.title}",${v.severity},"${v.description || ''}","${v.assignment_group || ''}",${v.due_date || ''},${v.status || 'Open'}`).join('\n');
+            vulns.map(v => `"${v.title}",${v.severity},"${v.description||''}","${v.assignment_group||''}",${v.due_date||''},${v.status||'Open'}`).join('\n');
         
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
         a.download = 'vulnerabilities.csv';
         a.click();
-        URL.revokeObjectURL(url);
     }
 }
 
 async function initVulnerabilitiesManager() {
-    console.log('initVulnerabilitiesManager: starting');
+    console.log('[VULN] init start');
     try {
-        if (window.dbManager && window.dbManager.ready) {
-            console.log('initVulnerabilitiesManager: waiting for db');
-            await window.dbManager.ready;
-            console.log('initVulnerabilitiesManager: db ready');
-        }
-        
-        console.log('initVulnerabilitiesManager: creating manager');
+        if (window.dbManager?.ready) await window.dbManager.ready;
         window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
         await window.vulnerabilitiesManager.init();
-        console.log('initVulnerabilitiesManager: complete');
-    } catch (error) {
-        console.error('initVulnerabilitiesManager error:', error);
-        window.vulnerabilitiesManager = new VulnerabilitiesManager(null);
-        window.vulnerabilitiesManager.initialized = true;
+    } catch(e) {
+        console.error('[VULN] init error:', e);
+        window.vulnerabilitiesManager = {initialized:true};
     }
 }
 
