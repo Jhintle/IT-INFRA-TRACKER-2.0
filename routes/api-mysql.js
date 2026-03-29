@@ -322,10 +322,19 @@ router.post('/vulnerabilities', authenticateToken, async (req, res) => {
         const { title, severity, description, status, dueDate, assignmentGroup, created_by, discovered_date, resolved_date } = req.body;
         const userId = req.user.id;
 
+        // Helper to convert date formats
+        const formatDate = (d) => {
+            if (!d) return null;
+            if (typeof d === 'string') {
+                return d.replace('T', ' ').replace('Z', '');
+            }
+            return d;
+        };
+
         // MySQL: Insert without RETURNING
         await db.query(
             'INSERT INTO vulnerabilities (title, severity, description, status, due_date, assignment_group, created_by, discovered_date, resolved_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [title, severity, description, status, dueDate, assignmentGroup, created_by || userId, discovered_date, resolved_date]
+            [title, severity, description, status, formatDate(dueDate), assignmentGroup, created_by || userId, formatDate(discovered_date), formatDate(resolved_date)]
         );
         
         // Get the inserted record
@@ -372,9 +381,18 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
         Object.keys(updateData).forEach(key => {
             if (updateData[key] !== undefined && updateData[key] !== null) {
                 // Convert camelCase to snake_case
-                const dbField = fieldMapping[key] || key;
+                let dbField = fieldMapping[key] || key;
+                let value = updateData[key];
+                
+                // Handle date/datetime fields - convert to MySQL format
+                if (['due_date', 'discovered_date', 'resolved_date', 'created_at', 'updated_at'].includes(dbField)) {
+                    if (value && typeof value === 'string') {
+                        value = value.replace('T', ' ').replace('Z', '');
+                    }
+                }
+                
                 updateFields.push(`${dbField} = ?`);
-                updateValues.push(updateData[key]);
+                updateValues.push(value);
             }
         });
 
@@ -384,7 +402,7 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
 
         // Add updated_at timestamp
         updateFields.push(`updated_at = ?`);
-        updateValues.push(new Date().toISOString());
+        updateValues.push(new Date().toISOString().replace('T', ' ').replace('Z', ''));
         
         // Add id for WHERE clause
         updateValues.push(id);
@@ -444,12 +462,22 @@ router.post('/vulnerabilities/import', authenticateToken, async (req, res) => {
         let removed = 0;
 
         const userId = req.user.id;
+        
+        // Helper to convert date formats
+        const formatDate = (d) => {
+            if (!d) return null;
+            if (typeof d === 'string') {
+                return d.replace('T', ' ').replace('Z', '');
+            }
+            return d;
+        };
+        
         for (const vuln of vulnerabilities) {
             try {
                 // MySQL: Insert without RETURNING
                 await db.query(
                     'INSERT INTO vulnerabilities (title, severity, description, status, due_date, assignment_group, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [vuln.title, vuln.severity, vuln.description, vuln.status, vuln.due_date, vuln.assignment_group, userId]
+                    [vuln.title, vuln.severity, vuln.description, vuln.status, formatDate(vuln.due_date), vuln.assignment_group, userId]
                 );
                 imported++;
             } catch (error) {
