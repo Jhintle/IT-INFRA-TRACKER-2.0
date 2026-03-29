@@ -1,342 +1,1591 @@
 // Vulnerability Reports Management Module
-console.log('[VULN] vulnerabilities.js loaded');
 class VulnerabilitiesManager {
     constructor(database) {
         this.db = database;
-        this.initialized = false;
-        this.currentWorkbook = null;
+        this.currentSeverityFilter = '';
+        this.currentStatusFilter = '';
+        this.currentSortBy = 'newest'; // Default sort: newest first
+        this.searchTerm = ''; // Search filter
+        this.DUE_WARNING_DAYS = 7; // Consider "Due" when within 7 days
+        this.pagination = {
+            currentPage: 1,
+            itemsPerPage: 25,
+            totalItems: 0,
+            totalPages: 0
+        };
+    }
+
+    // Calculate status based on due date
+    calculateStatus(dueDate, currentStatus) {
+        if (!dueDate) return 'Open';
+        
+        // If manually set to Resolved, keep it
+        if (currentStatus === 'Resolved') return 'Resolved';
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const due = new Date(dueDate);
+        due.setHours(0, 0, 0, 0);
+        
+        const diffTime = due - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) {
+            // Due date has passed
+            return 'Breached';
+        } else if (diffDays <= this.DUE_WARNING_DAYS) {
+            // Due date is within warning period (7 days)
+            return 'Due';
+        } else {
+            // Due date is in the future, more than warning period
+            return 'Open';
+        }
+    }
+
+    async recalculateAllStatuses() {
+        try {
+            const vulnerabilities = await this.db.select('vulnerabilities');
+            let updatedCount = 0;
+            
+            for (const vuln of vulnerabilities) {
+                // Skip resolved vulnerabilities
+                if (vuln.status === 'Resolved') continue;
+                
+                // Calculate current status based on due date
+                const calculatedStatus = this.calculateStatus(vuln.due_date, vuln.status);
+                
+                // Update if status has changed
+                if (calculatedStatus !== vuln.status) {
+                    await this.db.update('vulnerabilities', vuln.id, { status: calculatedStatus });
+                    updatedCount++;
+                    console.log(`Updated ${vuln.title}: ${vuln.status} → ${calculatedStatus}`);
+                }
+            }
+            
+            if (updatedCount > 0) {
+                console.log(`Recalculated ${updatedCount} vulnerability statuses`);
+            }
+        } catch (error) {
+            console.error('Error recalculating statuses:', error);
+        }
     }
 
     async init() {
-        console.log('[VULN] init called');
-        if (document.readyState === 'loading') {
-            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
-        }
         this.attachEventListeners();
+        await this.recalculateAllStatuses(); // Update statuses based on current dates
         await this.loadVulnerabilities();
         this.initialized = true;
-        console.log('[VULN] init complete');
+        console.log('Vulnerabilities manager initialized');
     }
 
     attachEventListeners() {
-        console.log('[VULN] attachEventListeners running');
+        console.log('Attaching vulnerabilities event listeners...');
         
+        // Add vulnerability button
         const addBtn = document.getElementById('addVulnerabilityBtn');
         if (addBtn) {
-            addBtn.addEventListener('click', () => this.showVulnerabilityModal());
-            console.log('[VULN] addVulnerabilityBtn listener attached');
+            console.log('Attaching Add Vulnerability button');
+            addBtn.addEventListener('click', () => {
+                console.log('Add Vulnerability button clicked');
+                this.showVulnerabilityModal();
+            });
         } else {
-            console.log('[VULN] addVulnerabilityBtn not found');
+            console.warn('Add Vulnerability button not found');
         }
-        
+
+        // Import XLSX buttons
         const importBtn = document.getElementById('importXlsxBtn');
         const fileInput = document.getElementById('xlsxImportInput');
+
         if (importBtn && fileInput) {
+            console.log('Attaching Import Excel button');
             importBtn.addEventListener('click', () => {
-                console.log('[VULN] Import button clicked');
+                console.log('Import Excel button clicked');
                 fileInput.click();
             });
+
             fileInput.addEventListener('change', (e) => {
-                console.log('[VULN] File input changed', e.target.files);
+                console.log('File selected for import');
                 this.handleXlsxImport(e);
             });
-            console.log('[VULN] Import listeners attached');
         } else {
-            console.log('[VULN] importXlsxBtn or xlsxImportInput not found');
+            console.warn('Import button or file input not found');
         }
         
+        // Export button
         const exportBtn = document.getElementById('exportVulnerabilitiesBtn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportVulnerabilities());
-            console.log('[VULN] exportVulnerabilitiesBtn listener attached');
+            console.log('Attaching Export Vulnerabilities button');
+            exportBtn.addEventListener('click', async () => {
+                console.log('Export Vulnerabilities button clicked');
+                await this.exportVulnerabilities();
+            });
+        } else {
+            console.warn('Export Vulnerabilities button not found');
+        }
+
+        // Severity filter
+        const severityFilter = document.getElementById('vulnerabilitySeverityFilter');
+        if (severityFilter) {
+            severityFilter.addEventListener('change', async (e) => {
+                this.currentSeverityFilter = e.target.value;
+                await this.loadVulnerabilities();
+            });
+        }
+
+        // Status filter
+        const statusFilter = document.getElementById('vulnerabilityStatusFilter');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', async (e) => {
+                this.currentStatusFilter = e.target.value;
+                await this.loadVulnerabilities();
+            });
+        }
+
+        // Sort by filter
+        const sortBySelect = document.getElementById('vulnerabilitySortBy');
+        if (sortBySelect) {
+            sortBySelect.addEventListener('change', async (e) => {
+                this.currentSortBy = e.target.value;
+                await this.loadVulnerabilities();
+            });
+        }
+
+        // Search functionality
+        const searchInput = document.getElementById('vulnerabilitySearchInput');
+        const searchBtn = document.getElementById('vulnerabilitySearchBtn');
+        
+        if (searchInput) {
+            console.log('Attaching search input listener');
+            searchInput.addEventListener('input', async (e) => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.pagination.currentPage = 1; // Reset to first page on search
+                await this.loadVulnerabilities();
+            });
+            
+            // Handle Enter key
+            searchInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    this.searchTerm = e.target.value.toLowerCase();
+                    this.pagination.currentPage = 1;
+                    await this.loadVulnerabilities();
+                }
+            });
+        }
+        
+        if (searchBtn) {
+            searchBtn.addEventListener('click', async () => {
+                if (searchInput) {
+                    this.searchTerm = searchInput.value.toLowerCase();
+                    this.pagination.currentPage = 1;
+                    await this.loadVulnerabilities();
+                }
+            });
+        }
+
+        // Pagination controls
+        this.attachPaginationListeners();
+    }
+
+    attachPaginationListeners() {
+        // Items per page selector
+        const itemsPerPageSelect = document.getElementById('itemsPerPage');
+        if (itemsPerPageSelect) {
+            itemsPerPageSelect.addEventListener('change', async (e) => {
+                const value = e.target.value;
+                this.pagination.itemsPerPage = value === 'all' ? 'all' : parseInt(value);
+                this.pagination.currentPage = 1; // Reset to first page
+                await this.loadVulnerabilities();
+            });
+        }
+
+        // Page navigation buttons
+        document.getElementById('firstPageBtn')?.addEventListener('click', async () => {
+            if (this.pagination.currentPage > 1) {
+                this.pagination.currentPage = 1;
+                await this.loadVulnerabilities();
+            }
+        });
+
+        document.getElementById('prevPageBtn')?.addEventListener('click', async () => {
+            if (this.pagination.currentPage > 1) {
+                this.pagination.currentPage--;
+                await this.loadVulnerabilities();
+            }
+        });
+
+        document.getElementById('nextPageBtn')?.addEventListener('click', async () => {
+            if (this.pagination.currentPage < this.pagination.totalPages) {
+                this.pagination.currentPage++;
+                await this.loadVulnerabilities();
+            }
+        });
+
+        document.getElementById('lastPageBtn')?.addEventListener('click', async () => {
+            if (this.pagination.currentPage < this.pagination.totalPages) {
+                this.pagination.currentPage = this.pagination.totalPages;
+                await this.loadVulnerabilities();
+            }
+        });
+    }
+
+    async exportVulnerabilities() {
+        try {
+            let where = [];
+            let params = [];
+
+            if (this.currentSeverityFilter) {
+                where.push('severity = ?');
+                params.push(this.currentSeverityFilter);
+            }
+
+            if (this.currentStatusFilter) {
+                where.push('status = ?');
+                params.push(this.currentStatusFilter);
+            }
+
+            const whereClause = where.length > 0 ? where.join(' AND ') : '';
+            const vulnerabilities = await this.db.select('vulnerabilities', whereClause, params, 'created_at DESC');
+
+            if (vulnerabilities.length === 0) {
+                this.showError('No vulnerabilities to export');
+                return;
+            }
+
+            let csv = 'VULNERABILITIES EXPORT\n';
+            csv += 'Request Item,Severity,Description,Assignment Group,Due Date,Status,Discovered Date\n';
+
+            vulnerabilities.forEach(vuln => {
+                csv += `"${this.escapeCsv(vuln.title)}",${vuln.severity || 'Unknown'},"${this.escapeCsv(vuln.description)}","${this.escapeCsv(vuln.assignment_group)}",${vuln.due_date || ''},${vuln.status || 'Open'},${vuln.discovered_date || ''}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vulnerabilities-report-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this.showSuccess('Vulnerabilities exported successfully');
+        } catch (error) {
+            console.error('Error exporting vulnerabilities:', error);
+            this.showError('Failed to export vulnerabilities');
         }
     }
 
     async loadVulnerabilities() {
         try {
-            const vulns = await this.db.select('vulnerabilities');
-            this.renderVulnerabilities(vulns);
-        } catch (e) {
-            console.error('Load error:', e);
+            let where = [];
+            let params = [];
+
+            if (this.currentSeverityFilter) {
+                where.push('severity = ?');
+                params.push(this.currentSeverityFilter);
+            }
+
+            if (this.currentStatusFilter) {
+                where.push('status = ?');
+                params.push(this.currentStatusFilter);
+            }
+
+            const whereClause = where.length > 0 ? where.join(' AND ') : '';
+            
+            // Get vulnerabilities without sorting (we'll sort in memory)
+            let vulnerabilities = await this.db.select('vulnerabilities', whereClause, params);
+            
+            // Apply search filter
+            if (this.searchTerm) {
+                vulnerabilities = vulnerabilities.filter(vuln => {
+                    const searchableText = [
+                        vuln.title,
+                        vuln.description,
+                        vuln.assignment_group,
+                        vuln.severity,
+                        vuln.status
+                    ].join(' ').toLowerCase();
+                    return searchableText.includes(this.searchTerm);
+                });
+            }
+            
+            // Apply user-selected sorting
+            const sortedVulnerabilities = this.sortVulnerabilities(vulnerabilities);
+            
+            this.renderVulnerabilities(sortedVulnerabilities);
+        } catch (error) {
+            console.error('Error loading vulnerabilities:', error);
+            this.showError('Failed to load vulnerabilities');
         }
+    }
+
+    sortVulnerabilities(vulnerabilities) {
+        const sorted = [...vulnerabilities]; // Create a copy
+        
+        switch (this.currentSortBy) {
+            case 'newest':
+                // Sort by discovered_date descending (newest first)
+                sorted.sort((a, b) => {
+                    const dateA = new Date(a.discovered_date || a.created_at || 0);
+                    const dateB = new Date(b.discovered_date || b.created_at || 0);
+                    return dateB - dateA;
+                });
+                break;
+                
+            case 'oldest':
+                // Sort by discovered_date ascending (oldest first)
+                sorted.sort((a, b) => {
+                    const dateA = new Date(a.discovered_date || a.created_at || 0);
+                    const dateB = new Date(b.discovered_date || b.created_at || 0);
+                    return dateA - dateB;
+                });
+                break;
+                
+            case 'dueDateAsc':
+                // Sort by due_date ascending (earliest due date first)
+                sorted.sort((a, b) => {
+                    if (!a.due_date && !b.due_date) return 0;
+                    if (!a.due_date) return 1; // Items without due date go to end
+                    if (!b.due_date) return -1;
+                    return new Date(a.due_date) - new Date(b.due_date);
+                });
+                break;
+                
+            case 'dueDateDesc':
+                // Sort by due_date descending (latest due date first)
+                sorted.sort((a, b) => {
+                    if (!a.due_date && !b.due_date) return 0;
+                    if (!a.due_date) return 1; // Items without due date go to end
+                    if (!b.due_date) return -1;
+                    return new Date(b.due_date) - new Date(a.due_date);
+                });
+                break;
+                
+            default:
+                // Default to newest first
+                sorted.sort((a, b) => {
+                    const dateA = new Date(a.discovered_date || a.created_at || 0);
+                    const dateB = new Date(b.discovered_date || b.created_at || 0);
+                    return dateB - dateA;
+                });
+        }
+        
+        return sorted;
     }
 
     renderVulnerabilities(vulnerabilities) {
         const tbody = document.getElementById('vulnerabilitiesTableBody');
-        if (!tbody) return;
         
-        if (!vulnerabilities || vulnerabilities.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">No vulnerabilities found</td></tr>';
-            return;
+        // Calculate pagination
+        const totalItems = vulnerabilities.length;
+        const itemsPerPage = this.pagination.itemsPerPage === 'all' ? totalItems : this.pagination.itemsPerPage;
+        const totalPages = itemsPerPage > 0 ? Math.ceil(totalItems / itemsPerPage) : 1;
+        
+        // Update pagination state
+        this.pagination.totalItems = totalItems;
+        this.pagination.totalPages = totalPages;
+        
+        // Ensure current page is valid
+        if (this.pagination.currentPage > totalPages) {
+            this.pagination.currentPage = totalPages || 1;
         }
         
-        tbody.innerHTML = vulnerabilities.map(v => {
-            const due = v.due_date || '';
-            const dueDate = due ? new Date(due) : null;
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const isOverdue = dueDate && dueDate < today;
-            const status = isOverdue ? 'Breached' : (v.status || 'Open');
-            const dateStr = dueDate ? dueDate.toLocaleDateString() : '-';
+        // Calculate slice indices
+        const startIndex = (this.pagination.currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+        
+        // Get current page items
+        const paginatedVulnerabilities = itemsPerPage === 'all' ? vulnerabilities : vulnerabilities.slice(startIndex, endIndex);
+        
+        // Update pagination UI
+        this.updatePaginationUI(startIndex + 1, endIndex, totalItems);
+        
+        requestAnimationFrame(() => {
+            if (vulnerabilities.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div>
+                                <i class="fas fa-shield-alt"></i>
+                                <h3>No vulnerabilities found</h3>
+                                <p>Import Wipro Excel file or add your first vulnerability report</p>
+                                <button class="btn btn-primary" id="emptyStateImportBtn">
+                                    <i class="fas fa-file-import"></i> Import Excel
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
+                // Attach event listener to the import button
+                setTimeout(() => {
+                    const importBtn = document.getElementById('emptyStateImportBtn');
+                    if (importBtn) {
+                        importBtn.addEventListener('click', () => {
+                            const xlsxBtn = document.getElementById('importXlsxBtn');
+                            if (xlsxBtn) xlsxBtn.click();
+                        });
+                    }
+                }, 0);
+                return;
+            }
+
+            const html = paginatedVulnerabilities.map(vulnerability => {
+                const shortDesc = vulnerability.description 
+                    ? (vulnerability.description.length > 100 
+                        ? vulnerability.description.substring(0, 100) + '...' 
+                        : vulnerability.description)
+                    : '-';
+                
+                // Calculate dynamic status based on due date
+                const calculatedStatus = this.calculateStatus(vulnerability.due_date, vulnerability.status);
+                const isBreached = calculatedStatus === 'Breached';
+                const isDue = calculatedStatus === 'Due';
+                
+                // Add visual indicators for breached/due
+                let statusBadgeClass = this.getStatusClass(calculatedStatus);
+                let rowStyle = '';
+                if (isBreached) {
+                    rowStyle = 'style="background-color: rgba(239, 68, 68, 0.1);"';
+                } else if (isDue) {
+                    rowStyle = 'style="background-color: rgba(245, 158, 11, 0.1);"';
+                }
+                
+                return `
+                <tr ${rowStyle} data-vulnerability-id="${vulnerability.id}">
+                    <td><strong>${this.escapeHtml(vulnerability.title)}</strong></td>
+                    <td>
+                        <span class="badge badge-${this.getSeverityClass(vulnerability.severity)}">
+                             ${vulnerability.severity || 'Unknown'}
+                        </span>
+                    </td>
+                    <td title="${this.escapeHtml(vulnerability.description || '')}">${this.escapeHtml(shortDesc)}</td>
+                    <td>${this.escapeHtml(vulnerability.assignment_group || '-')}</td>
+                    <td>${this.formatDate(vulnerability.due_date)} ${isBreached ? '<span style="color: #ef4444;">⚠️ OVERDUE</span>' : isDue ? '<span style="color: #f59e0b;">⏰ DUE SOON</span>' : ''}</td>
+                    <td>
+                        <span class="badge badge-${statusBadgeClass}">
+                            ${calculatedStatus}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="edit-btn vulnerability-edit-btn" data-id="${vulnerability.id}" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="delete-btn vulnerability-delete-btn" data-id="${vulnerability.id}" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `}).join('');
             
-            return `<tr data-vulnerability-id="${v.id}">
-                <td><strong>${v.title || ''}</strong></td>
-                <td><span class="badge badge-${this.getSeverityClass(v.severity)}">${v.severity || 'Unknown'}</span></td>
-                <td>${(v.description || '').substring(0, 80)}${(v.description || '').length > 80 ? '...' : ''}</td>
-                <td>${v.assignment_group || '-'}</td>
-                <td>${dateStr}${isOverdue ? ' <span style="color:#ef4444;font-weight:bold;">⚠️</span>' : ''}</td>
-                <td><span class="badge badge-${this.getStatusClass(status)}">${status}</span></td>
-                <td>
-                    <button class="btn btn-sm" onclick="window.vulnerabilitiesManager.editVulnerability(${v.id})">✏️</button>
-                    <button class="btn btn-sm" onclick="window.vulnerabilitiesManager.deleteVulnerability(${v.id})">🗑️</button>
-                </td>
-            </tr>`;
-        }).join('');
+            tbody.innerHTML = html;
+            
+            // Attach event listeners to edit and delete buttons
+            setTimeout(() => {
+                tbody.querySelectorAll('.vulnerability-edit-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.editVulnerability(id);
+                    });
+                });
+                
+                tbody.querySelectorAll('.vulnerability-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        this.deleteVulnerability(id);
+                    });
+                });
+            }, 0);
+        });
     }
 
-    getSeverityClass(s) {
-        const m = {'Critical':'danger','High':'warning','Medium':'info','Low':'success'};
-        return m[s] || 'secondary';
-    }
-
-    getStatusClass(s) {
-        const m = {'Open':'success','Due':'warning','Breached':'danger','Resolved':'secondary'};
-        return m[s] || 'secondary';
-    }
-
-    showVulnerabilityModal(vuln = null) {
-        const isEdit = !!vuln;
-        const html = `<div class="modal active">
-            <div class="modal-header"><h3>${isEdit ? 'Edit' : 'Add'} Vulnerability</h3><button class="modal-close" onclick="this.closest('.modal').remove()">×</button></div>
-            <div class="modal-body">
-                ${isEdit ? `<input type="hidden" id="vulnId" value="${vuln.id}">` : ''}
-                <div class="form-group"><label>Request Item *</label><input type="text" id="vulnTitle" value="${vuln?.title || ''}" class="form-control"></div>
-                <div class="form-group"><label>Severity</label><select id="vulnSeverity" class="form-control">
-                    <option value="Low" ${vuln?.severity==='Low'?'selected':''}>Low</option>
-                    <option value="Medium" ${vuln?.severity==='Medium'?'selected':''}>Medium</option>
-                    <option value="High" ${vuln?.severity==='High'?'selected':''}>High</option>
-                    <option value="Critical" ${vuln?.severity==='Critical'?'selected':''}>Critical</option>
-                </select></div>
-                <div class="form-group"><label>Due Date</label><input type="date" id="vulnDueDate" value="${vuln?.due_date || ''}" class="form-control"></div>
-                <div class="form-group"><label>Assignment Group</label><input type="text" id="vulnAssignment" value="${vuln?.assignment_group || ''}" class="form-control"></div>
-                <div class="form-group"><label>Status</label><select id="vulnStatus" class="form-control">
-                    <option value="Open" ${vuln?.status==='Open'?'selected':''}>Open</option>
-                    <option value="In Progress" ${vuln?.status==='In Progress'?'selected':''}>In Progress</option>
-                    <option value="Due" ${vuln?.status==='Due'?'selected':''}>Due</option>
-                    <option value="Breached" ${vuln?.status==='Breached'?'selected':''}>Breached</option>
-                    <option value="Resolved" ${vuln?.status==='Resolved'?'selected':''}>Resolved</option>
-                </select></div>
-                <div class="form-group"><label>Description</label><textarea id="vulnDescription" class="form-control" rows="3">${vuln?.description || ''}</textarea></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
-                <button class="btn btn-primary" onclick="window.vulnerabilitiesManager.saveVulnerability()">Save</button>
-            </div>
-        </div>`;
-        document.getElementById('modalContainer').innerHTML = html;
-    }
-
-    async saveVulnerability() {
-        const id = document.getElementById('vulnId')?.value;
-        const vuln = {
-            title: document.getElementById('vulnTitle').value,
-            severity: document.getElementById('vulnSeverity').value,
-            due_date: document.getElementById('vulnDueDate').value,
-            assignment_group: document.getElementById('vulnAssignment').value,
-            status: document.getElementById('vulnStatus').value,
-            description: document.getElementById('vulnDescription').value
-        };
-        
-        if (!vuln.title) { alert('Title required'); return; }
-        
-        if (id) {
-            await this.db.update('vulnerabilities', id, vuln);
-        } else {
-            await this.db.insert('vulnerabilities', vuln);
+    updatePaginationUI(startItem, endItem, totalItems) {
+        // Update info text
+        const infoElement = document.getElementById('paginationInfo');
+        if (infoElement) {
+            if (totalItems === 0) {
+                infoElement.textContent = 'No vulnerabilities to display';
+            } else if (this.pagination.itemsPerPage === 'all') {
+                infoElement.textContent = `Showing all ${totalItems} vulnerabilities`;
+            } else {
+                infoElement.textContent = `Showing ${startItem}-${endItem} of ${totalItems} vulnerabilities`;
+            }
         }
-        
-        document.getElementById('modalContainer').innerHTML = '';
-        await this.loadVulnerabilities();
-    }
 
-    async editVulnerability(id) {
-        const vulns = await this.db.select('vulnerabilities');
-        const vuln = vulns.find(v => v.id == id);
-        if (vuln) this.showVulnerabilityModal(vuln);
-    }
-
-    async deleteVulnerability(id) {
-        if (confirm('Delete this vulnerability?')) {
-            await this.db.delete('vulnerabilities', id);
-            await this.loadVulnerabilities();
+        // Update page indicator
+        const pageIndicator = document.getElementById('pageIndicator');
+        if (pageIndicator) {
+            if (this.pagination.itemsPerPage === 'all' || this.pagination.totalPages <= 1) {
+                pageIndicator.textContent = 'Page 1 of 1';
+            } else {
+                pageIndicator.textContent = `Page ${this.pagination.currentPage} of ${this.pagination.totalPages}`;
+            }
         }
+
+        // Update button states
+        const firstBtn = document.getElementById('firstPageBtn');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        const lastBtn = document.getElementById('lastPageBtn');
+
+        const isAll = this.pagination.itemsPerPage === 'all';
+        const isFirstPage = this.pagination.currentPage === 1 || isAll;
+        const isLastPage = this.pagination.currentPage === this.pagination.totalPages || isAll || this.pagination.totalPages === 0;
+
+        if (firstBtn) firstBtn.disabled = isFirstPage;
+        if (prevBtn) prevBtn.disabled = isFirstPage;
+        if (nextBtn) nextBtn.disabled = isLastPage;
+        if (lastBtn) lastBtn.disabled = isLastPage;
     }
 
-    async handleXlsxImport(event) {
+    handleXlsxImport(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
-        if (typeof XLSX === 'undefined') { 
-            alert('Excel library not loaded. Please refresh the page.'); 
-            return; 
+
+        // Check if XLSX library is loaded
+        if (typeof XLSX === 'undefined') {
+            console.error('XLSX library not loaded!');
+            this.showError('Excel processing library not available. Please refresh the page and try again.');
+            event.target.value = '';
+            return;
         }
-        
+
+        console.log('Importing file:', file.name, 'Type:', file.type, 'Size:', file.size);
+
+        // Check file extension
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        if (fileExtension === 'xls') {
+            this.showError('This file is in the older .xls format. Please open it in Excel and save as .xlsx format before importing.');
+            event.target.value = '';
+            return;
+        }
+        if (fileExtension === 'xlsm') {
+            this.showError('This file contains macros (.xlsm). Please remove macros and save as .xlsx format before importing.');
+            event.target.value = '';
+            return;
+        }
+        if (fileExtension !== 'xlsx') {
+            this.showError('Please select a .xlsx file only.');
+            event.target.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const data = new Uint8Array(e.target.result);
-                const wb = XLSX.read(data, {type:'array'});
+                const workbook = XLSX.read(data, { type: 'array' });
                 
-                // Store workbook for later use
-                this.currentWorkbook = wb;
+                console.log('Available sheets:', workbook.SheetNames);
                 
-                // Show sheet selector
-                this.showSheetSelector(wb);
-            } catch(err) { 
-                console.error('Parse error:', err);
-                alert('Error reading file: ' + err.message); 
+                // If multiple sheets, show selector
+                if (workbook.SheetNames.length > 1) {
+                    this.showSheetSelector(workbook, file.name);
+                    event.target.value = '';
+                    return;
+                }
+                
+                // Process first sheet
+                this.processSheet(workbook, workbook.SheetNames[0]);
+                event.target.value = '';
+                
+            } catch (error) {
+                console.error('Error parsing XLSX file:', error);
+                console.error('Error stack:', error.stack);
+                console.error('Error name:', error.name);
+                console.error('Error type:', typeof error);
+                console.error('File details:', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: new Date(file.lastModified).toISOString()
+                });
+                console.error('File extension:', file.name.split('.').pop().toLowerCase());
+                console.error('First 100 bytes (hex):', Array.from(data.slice(0, 100)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                
+                // Check if XLSX library is loaded
+                console.error('XLSX library loaded:', typeof XLSX !== 'undefined');
+                if (typeof XLSX !== 'undefined') {
+                    console.error('XLSX version:', XLSX.version);
+                }
+                
+                let errorMessage = 'Failed to parse Excel file';
+                if (error.message && error.message.includes('password')) {
+                    errorMessage = 'This file appears to be password protected. Please remove the password and try again.';
+                } else if (error.message && error.message.includes('corrupted')) {
+                    errorMessage = 'This file appears to be corrupted. Please try opening it in Excel and re-saving as .xlsx format.';
+                } else if (file.name.toLowerCase().endsWith('.xls')) {
+                    errorMessage = 'This appears to be an older .xls format. Please open in Excel and save as .xlsx format before importing.';
+                } else if (file.name.toLowerCase().endsWith('.xlsm')) {
+                    errorMessage = 'This file contains macros (.xlsm). Please remove macros and save as .xlsx format before importing.';
+                } else {
+                    errorMessage = 'Failed to parse Excel file: ' + (error.message || 'Unknown error') + '. Please ensure it is a valid .xlsx file (not .xls or .xlsm) and try re-saving it in Excel.';
+                }
+                
+                this.showError(errorMessage);
+                event.target.value = '';
             }
         };
-        reader.onerror = () => { alert('Failed to read file'); };
+        reader.onerror = () => {
+            this.showError('Failed to read Excel file');
+            event.target.value = '';
+        };
         reader.readAsArrayBuffer(file);
-        event.target.value = '';
     }
 
-    showSheetSelector(workbook) {
-        const opts = workbook.SheetNames.map((n,i) => `<option value="${i}">${i+1}. ${n}</option>`).join('');
-        
-        // Get preview data from first sheet
-        let previewHtml = '';
-        try {
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(firstSheet, {header:1});
-            if (data.length > 0) {
-                const headers = data[0].slice(0, 5).join(' | ');
-                previewHtml = `<p style="font-size:12px;color:#666;">Headers: ${headers}</p>`;
-                previewHtml += `<p style="font-size:12px;color:#666;">Total rows: ${data.length - 1}</p>`;
-            }
-        } catch(e) {}
-        
-        const html = `<div class="modal active" id="sheetSelectorModal">
-            <div class="modal-header">
-                <h3>Select Excel Sheet to Import</h3>
-                <button class="modal-close" onclick="document.getElementById('sheetSelectorModal').remove()">×</button>
-            </div>
-            <div class="modal-body">
-                <p><strong>Available Sheets:</strong></p>
-                <select id="sheetSelect" class="form-control" style="margin-bottom:15px;">${opts}</select>
-                ${previewHtml}
-                <div style="background:#f5f5f5;padding:10px;border-radius:4px;font-size:12px;">
-                    <strong>Instructions:</strong> Select the sheet containing your vulnerability data, then click "Import" to continue.
+    showSheetSelector(workbook, filename) {
+        const sheetOptions = workbook.SheetNames.map((name, index) => 
+            `<option value="${name}">${index + 1}. ${name}</option>`
+        ).join('');
+
+        const modalHtml = `
+            <div class="modal" id="sheetSelectorModal">
+                <div class="modal-header">
+                    <h3 class="modal-title">Select Excel Sheet to Import</h3>
+                    <button class="modal-close" id="sheetSelectorModalClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>File: <strong>${filename}</strong></p>
+                    <p>This Excel file has multiple sheets. Please select which sheet to import:</p>
+                    <div class="form-group">
+                        <label for="sheetSelect">Select Sheet:</label>
+                        <select id="sheetSelect" class="form-control" style="margin-top: 0.5rem;">
+                            ${sheetOptions}
+                        </select>
+                    </div>
+                    <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius);">
+                        <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                            <i class="fas fa-info-circle"></i> 
+                            All rows with a Request Item will be imported. Duplicates will be checked by Request Item and Due Date.
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="sheetSelectorModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="sheetSelectorModalImport">
+                        <i class="fas fa-file-import"></i> Import Selected Sheet
+                    </button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="document.getElementById('sheetSelectorModal').remove()">Cancel</button>
-                <button class="btn btn-primary" id="importSheetBtn">Import Selected Sheet</button>
-            </div>
-        </div>`;
+        `;
+
+        const modalContainer = document.getElementById('modalContainer');
+        modalContainer.innerHTML = modalHtml;
+        modalContainer.classList.add('active');
         
-        document.getElementById('modalContainer').innerHTML = html;
+        // Attach event listeners
+        document.getElementById('sheetSelectorModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('sheetSelectorModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('sheetSelectorModalImport').addEventListener('click', () => this.importSelectedSheet());
         
-        // Attach event listener
-        document.getElementById('importSheetBtn').onclick = () => {
-            const idx = parseInt(document.getElementById('sheetSelect').value);
-            this.processSheet(workbook, workbook.SheetNames[idx]);
-            document.getElementById('sheetSelectorModal').remove();
-        };
+        // Store workbook for later use
+        this.currentWorkbook = workbook;
+    }
+
+    importSelectedSheet() {
+        const sheetName = document.getElementById('sheetSelect').value;
+        if (!sheetName) {
+            this.showError('Please select a sheet');
+            return;
+        }
+        
+        this.closeModal();
+        this.processSheet(this.currentWorkbook, sheetName);
+        this.currentWorkbook = null;
     }
 
     processSheet(workbook, sheetName) {
         try {
-            const sheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(sheet);
+            console.log(`Processing sheet: ${sheetName}`);
+            const worksheet = workbook.Sheets[sheetName];
             
-            let count = 0;
-            
-            for (const row of json) {
-                const title = row['Request Item'] || row['request_item'] || row['Request'] || row['Item'] || '';
-                if (!title) continue;
-                
-                const vuln = {
-                    title: String(title),
-                    severity: this.mapPriority(row['Priority'] || row['priority'] || ''),
-                    description: row['Description'] || row['description'] || '',
-                    assignment_group: row['Assignment Group'] || row['assignment_group'] || '',
-                    due_date: this.parseDate(row['Due Date'] || row['due_date']),
-                    status: 'Open'
-                };
-                
-                this.db.insert('vulnerabilities', vuln);
-                count++;
+            if (!worksheet) {
+                this.showError(`Sheet "${sheetName}" not found`);
+                return;
             }
             
-            this.loadVulnerabilities();
-            alert(`Import complete! ${count} items imported.`);
-        } catch(e) { 
-            console.error('Import error:', e);
-            alert('Import error: ' + e.message); 
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            console.log(`Sheet "${sheetName}" has ${jsonData.length} rows`);
+            
+            if (jsonData.length < 2) {
+                this.showError('Selected sheet appears to be empty or has no data rows');
+                return;
+            }
+
+            // Extract headers (first row)
+            const headers = jsonData[0].map(h => String(h || '').toLowerCase().trim());
+            console.log('Headers found:', headers);
+            
+            // Show preview first so user can see what was detected
+            this.showExcelPreview(headers, jsonData.slice(1, 6), workbook, sheetName);
+            
+        } catch (error) {
+            console.error('Error processing sheet:', error);
+            this.showError('Failed to process Excel sheet. Check console for details.');
         }
     }
 
-    mapPriority(p) {
-        const s = String(p).toLowerCase();
-        if (s.includes('critical') || s === '1') return 'Critical';
-        if (s.includes('high') || s === '2') return 'High';
-        if (s.includes('medium') || s.includes('moderate') || s === '3') return 'Medium';
-        return 'Low';
-    }
-
-    parseDate(v) {
-        if (!v) return '';
-        if (v instanceof Date) return v.toISOString().split('T')[0];
-        if (typeof v === 'string') return v.substring(0,10);
-        return String(v);
-    }
-
-    async exportVulnerabilities() {
-        const vulns = await this.db.select('vulnerabilities');
-        const csv = 'Request Item,Severity,Description,Assignment Group,Due Date,Status\n' + 
-            vulns.map(v => `"${v.title}",${v.severity},"${v.description||''}","${v.assignment_group||''}",${v.due_date||''},${v.status||'Open'}`).join('\n');
+    showExcelPreview(headers, sampleRows, workbook, sheetName) {
+        // Find column indices for preview
+        const requestItemIdx = this.findColumnIndex(headers, ['request', 'item', 'ritm', 'number', 'ticket']);
+        const priorityIdx = this.findColumnIndex(headers, ['priority', 'urgency', 'impact']);
+        const assignmentGroupIdx = this.findColumnIndex(headers, ['assignment', 'group', 'assigned', 'team', 'owner']);
         
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        a.download = 'vulnerabilities.csv';
-        a.click();
+        // Create preview table
+        let previewHtml = `
+            <div class="modal" id="previewModal">
+                <div class="modal-header">
+                    <h3 class="modal-title">Excel Import Preview</h3>
+                    <button class="modal-close" id="previewModalClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0;">Detected Columns:</h4>
+                        <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.875rem;">
+                            <li>Request Item column: ${requestItemIdx >= 0 ? `<strong>${headers[requestItemIdx]}</strong> (index ${requestItemIdx})` : '<span style="color: var(--danger-color);">NOT FOUND</span>'}</li>
+                            <li>Priority column: ${priorityIdx >= 0 ? `<strong>${headers[priorityIdx]}</strong> (index ${priorityIdx})` : '<span style="color: var(--danger-color);">NOT FOUND</span>'}</li>
+                            <li>Assignment Group column: ${assignmentGroupIdx >= 0 ? `<strong>${headers[assignmentGroupIdx]}</strong> (index ${assignmentGroupIdx})` : '<span style="color: var(--danger-color);">NOT FOUND</span>'}</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0;">First Few Rows:</h4>
+                        <div style="max-height: 200px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius);">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                                <thead>
+                                    <tr style="background: var(--bg-tertiary);">
+                                        ${headers.map(h => `<th style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: left;">${h}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${sampleRows.map((row, i) => `
+                                        <tr>
+                                            ${headers.map((_, idx) => {
+                                                const val = row[idx] || '';
+                                                const hasRequestItem = requestItemIdx === idx && val.toString().trim() !== '';
+                                                return `<td style="padding: 0.5rem; border: 1px solid var(--border-color); ${hasRequestItem ? 'background: rgba(255, 215, 0, 0.2);' : ''}">${val}</td>`;
+                                            }).join('')}
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius); font-size: 0.875rem;">
+                        <p style="margin: 0 0 0.5rem 0;"><i class="fas fa-info-circle" style="color: var(--info-color);"></i> 
+                        <strong>Import Rules:</strong></p>
+                        <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.8rem;">
+                            <li>All rows with a Request Item will be imported</li>
+                            <li>Existing items: Only updated if Due Date is different</li>
+                            <li>Items <strong>not in this import</strong> will be <strong>removed</strong> (assumed resolved)</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="previewModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="previewModalImport">
+                        <i class="fas fa-file-import"></i> Proceed with Import
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.getElementById('modalContainer');
+        modalContainer.innerHTML = previewHtml;
+        modalContainer.classList.add('active');
+        
+        // Attach event listeners
+        document.getElementById('previewModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('previewModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('previewModalImport').addEventListener('click', () => this.confirmImport(sheetName));
+        
+        // Store data for import
+        this.previewData = { workbook, sheetName, headers };
+    }
+
+    confirmImport(sheetName) {
+        this.closeModal();
+        if (this.previewData) {
+            this.importFromPreview(this.previewData.workbook, sheetName, this.previewData.headers);
+            this.previewData = null;
+        }
+    }
+
+    importFromPreview(workbook, sheetName, headers) {
+        try {
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            console.log('Raw headers from Excel:', headers);
+            console.log('Total rows in Excel:', jsonData.length);
+            console.log('First data row:', jsonData[1]);
+            
+            // Find column indices
+            const requestItemIdx = this.findColumnIndex(headers, ['request', 'item', 'ritm', 'number', 'ticket']);
+            const priorityIdx = this.findColumnIndex(headers, ['priority', 'urgency', 'impact']);
+            const descriptionIdx = this.findColumnIndex(headers, ['description']);
+            const shortDescIdx = this.findColumnIndex(headers, ['short', 'summary', 'title']);
+            const assignmentGroupIdx = this.findColumnIndex(headers, ['assignment', 'group', 'assigned', 'team', 'owner']);
+            const dueDateIdx = this.findColumnIndex(headers, ['due', 'date', 'target', 'end']);
+            
+            console.log('Importing with column indices:', {
+                requestItemIdx,
+                priorityIdx,
+                assignmentGroupIdx,
+                dueDateIdx
+            });
+            
+            if (requestItemIdx === -1) {
+                console.error('Could not find Request Item column. Headers found:', headers);
+                this.showError('Could not find "Request Item" column. Please ensure your Excel file has a column with "Request" or "Item" in the header.');
+                return;
+            }
+
+            const vulnerabilities = [];
+            let skippedCount = 0;
+
+            for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0) {
+                    console.log(`Row ${i}: Empty row, skipping`);
+                    continue;
+                }
+
+                // Get raw value and handle different data types
+                let rawValue = row[requestItemIdx];
+                let requestItem = '';
+                
+                // Handle numbers (Excel sometimes stores request numbers as numbers)
+                if (typeof rawValue === 'number') {
+                    requestItem = String(rawValue);
+                } else if (typeof rawValue === 'string') {
+                    requestItem = rawValue.trim();
+                } else if (rawValue !== undefined && rawValue !== null) {
+                    requestItem = String(rawValue).trim();
+                }
+                
+                console.log(`Row ${i}: Raw value type: ${typeof rawValue}, value:`, rawValue);
+                console.log(`Row ${i}: Processed Request Item = "${requestItem}"`);
+                
+                // Skip rows without a request item
+                if (!requestItem || requestItem === '') {
+                    console.log(`Row ${i}: No request item found, skipping`);
+                    skippedCount++;
+                    continue;
+                }
+
+                const priority = priorityIdx >= 0 ? String(row[priorityIdx] || '') : '';
+                const description = descriptionIdx >= 0 ? String(row[descriptionIdx] || '') : '';
+                const shortDescription = shortDescIdx >= 0 ? String(row[shortDescIdx] || '') : '';
+                const dueDate = dueDateIdx >= 0 ? this.parseExcelDate(row[dueDateIdx]) : '';
+                const assignmentGroup = assignmentGroupIdx >= 0 ? String(row[assignmentGroupIdx] || '') : '';
+
+                const severity = this.mapPriorityToSeverity(priority);
+
+                // Combine descriptions
+                const fullDescription = shortDescription 
+                    ? `${shortDescription}${description ? '\n\n' + description : ''}`
+                    : description;
+
+                // Calculate initial status based on due date
+                const initialStatus = this.calculateStatus(dueDate, 'Open');
+
+                vulnerabilities.push({
+                    title: requestItem,
+                    severity: severity,
+                    description: fullDescription || shortDescription || 'No description provided',
+                    status: initialStatus,
+                    discovered_date: new Date().toISOString().split('T')[0],
+                    resolved_date: null,
+                    assignment_group: assignmentGroup,
+                    due_date: dueDate
+                });
+            }
+
+            console.log(`Import summary: ${vulnerabilities.length} matched, ${skippedCount} skipped`);
+            
+            // Show all skipped rows for debugging
+            const skippedRows = [];
+            for (let i = 1; i < jsonData.length && skippedRows.length < 20; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0) {
+                    skippedRows.push({row: i + 1, reason: 'Empty row'});
+                } else {
+                    let rawValue = row[requestItemIdx];
+                    let requestItem = '';
+                    if (typeof rawValue === 'number') {
+                        requestItem = String(rawValue);
+                    } else if (typeof rawValue === 'string') {
+                        requestItem = rawValue.trim();
+                    } else if (rawValue !== undefined && rawValue !== null) {
+                        requestItem = String(rawValue).trim();
+                    }
+                    
+                    if (!requestItem || requestItem === '') {
+                        skippedRows.push({
+                            row: i + 1,
+                            reason: 'No request item',
+                            rawValue: rawValue,
+                            rawValueType: typeof rawValue
+                        });
+                    }
+                }
+            }
+            
+            if (skippedRows.length > 0) {
+                console.log('Skipped rows:', skippedRows);
+            }
+            
+            // Show first 10 vulnerabilities that will be imported
+            console.log('First 10 vulnerabilities to be imported:');
+            vulnerabilities.slice(0, 10).forEach((v, i) => {
+                console.log(`  ${i + 1}. ${v.title}`);
+            });
+            if (vulnerabilities.length > 10) {
+                console.log(`  ... and ${vulnerabilities.length - 10} more`);
+            }
+
+            if (vulnerabilities.length === 0) {
+                this.showError(`No vulnerabilities found with Request Items. Processed ${jsonData.length - 1} rows. Check console for details.`);
+                return;
+            }
+
+            this.importVulnerabilities(vulnerabilities);
+            
+        } catch (error) {
+            console.error('Error processing sheet:', error);
+            this.showError('Failed to process Excel sheet. Check console for details.');
+        }
+    }
+
+    findColumnIndex(headers, keywords) {
+        for (let i = 0; i < headers.length; i++) {
+            const header = headers[i];
+            for (const keyword of keywords) {
+                if (header.includes(keyword.toLowerCase())) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    parseExcelDate(excelDate) {
+        if (!excelDate) return '';
+        
+        if (typeof excelDate === 'string') {
+            const date = new Date(excelDate);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0];
+            }
+            return excelDate;
+        }
+        
+        if (typeof excelDate === 'number') {
+            const epoch = new Date(1899, 11, 30);
+            const date = new Date(epoch.getTime() + excelDate * 24 * 60 * 60 * 1000);
+            return date.toISOString().split('T')[0];
+        }
+        
+        return '';
+    }
+
+    mapPriorityToSeverity(priority) {
+        if (!priority) return 'Moderate';
+        
+        const p = priority.toLowerCase();
+        
+        if (p.includes('critical') || p.includes('1') || p.includes('urgent')) {
+            return 'Critical';
+        } else if (p.includes('high') || p.includes('2') || p.includes('major')) {
+            return 'High';
+        } else if (p.includes('moderate') || p.includes('3') || p.includes('medium')) {
+            return 'Moderate';
+        } else if (p.includes('low') || p.includes('4') || p.includes('minor')) {
+            return 'Low';
+        }
+        
+        return 'Moderate';
+    }
+
+    async importVulnerabilities(vulnerabilities) {
+        let importedCount = 0;
+        let updatedCount = 0;
+        let unchangedCount = 0;
+        let removedCount = 0;
+        let errorCount = 0;
+
+        // Track all request items from the import
+        const importedRequestItems = new Set(vulnerabilities.map(v => v.title));
+        
+        console.log(`Starting import of ${vulnerabilities.length} vulnerabilities...`);
+        console.log(`Tracking ${importedRequestItems.size} unique request items from import`);
+
+        // First, remove vulnerabilities not in the new import (assumed resolved)
+        let removalErrors = 0;
+        try {
+            const existingVulnerabilities = await this.db.select('vulnerabilities');
+            const toRemove = existingVulnerabilities.filter(v => !importedRequestItems.has(v.title));
+            
+            if (toRemove.length > 0) {
+                console.log(`Removing ${toRemove.length} vulnerabilities not in new import (assumed resolved)`);
+                for (const vuln of toRemove) {
+                    try {
+                        await this.db.delete('vulnerabilities', vuln.id);
+                        removedCount++;
+                        console.log(`Removed (assumed resolved): ${vuln.title}`);
+                    } catch (err) {
+                        console.error(`Error removing ${vuln.title}:`, err);
+                        removalErrors++;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error during removal phase:', error);
+            removalErrors++;
+        }
+
+        // Process the import
+        for (const vuln of vulnerabilities) {
+            try {
+                // Check for existing vulnerability by title (Request Item)
+                const existing = await this.db.select('vulnerabilities', 'title = ?', [vuln.title]);
+                
+                if (existing.length > 0) {
+                    const existingVuln = existing[0];
+                    
+                    // Check if any fields need updating
+                    const needsUpdate = (
+                        (vuln.due_date && existingVuln.due_date !== vuln.due_date) ||
+                        (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group)
+                    );
+                    
+                    if (needsUpdate) {
+                        const updateData = {};
+                        const updateNotes = [];
+                        
+                        // Check due date
+                        if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
+                            const oldDate = existingVuln.due_date;
+                            const newDate = vuln.due_date;
+                            updateData.due_date = newDate;
+                            updateData.status = this.calculateStatus(newDate, existingVuln.status);
+                            updateNotes.push(`Due Date: ${oldDate} → ${newDate}`);
+                        }
+                        
+                        // Check assignment group
+                        if (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) {
+                            const oldGroup = existingVuln.assignment_group;
+                            const newGroup = vuln.assignment_group;
+                            updateData.assignment_group = newGroup;
+                            updateNotes.push(`Assignment Group: ${oldGroup} → ${newGroup}`);
+                        }
+                        
+                        try {
+                            await this.db.update('vulnerabilities', existingVuln.id, updateData);
+                            
+                            // Add note about changes to description
+                            if (updateNotes.length > 0) {
+                                const note = `\n\n[Updated ${new Date().toLocaleDateString()}]: ${updateNotes.join(', ')}`;
+                                const updatedDescription = (existingVuln.description || '') + note;
+                                await this.db.update('vulnerabilities', existingVuln.id, { description: updatedDescription });
+                            }
+                        } catch (updateError) {
+                            // Handle 404 - vulnerability might have been deleted
+                            if (updateError.message && updateError.message.includes('404')) {
+                                console.warn(`Vulnerability ${existingVuln.id} not found during update, creating new instead`);
+                                // Create as new vulnerability
+                                const newVuln = {
+                                    ...vuln,
+                                    title: vuln.title
+                                };
+                                await this.db.insert('vulnerabilities', newVuln);
+                                importedCount++;
+                                updatedCount--; // Don't count as update since it's now new
+                                console.log(`Created new vulnerability (404 recovery): ${vuln.title}`);
+                                continue;
+                            } else {
+                                throw updateError; // Re-throw non-404 errors
+                            }
+                        }
+                        
+                        console.log(`Updated vulnerability: ${vuln.title} (${updateNotes.join(', ')})`);
+                        updatedCount++;
+                    } else {
+                        // Same data, ignore
+                        unchangedCount++;
+                        console.log(`Ignored duplicate (no changes): ${vuln.title}`);
+                    }
+                } else {
+                    // Insert new vulnerability
+                    console.log(`Inserting: ${vuln.title}`);
+                    await this.db.insert('vulnerabilities', vuln);
+                    importedCount++;
+                }
+                
+            } catch (error) {
+                console.error(`Error importing vulnerability ${vuln.title}:`, error);
+                errorCount++;
+            }
+        }
+
+        console.log(`Import complete: ${importedCount} new, ${updatedCount} updated, ${removedCount} removed, ${unchangedCount} unchanged, ${errorCount} errors`);
+
+        // Force refresh of the display
+        // Store import statistics for dashboard display
+        const importStats = {
+            added: importedCount,
+            resolved: removedCount,
+            updated: updatedCount,
+            timestamp: new Date().toLocaleString()
+        };
+        localStorage.setItem('lastVulnerabilityImport', JSON.stringify(importStats));
+        console.log('Import statistics saved:', importStats);
+
+        setTimeout(async () => {
+            console.log('Refreshing vulnerabilities display...');
+            await this.loadVulnerabilities();
+            
+            // Recalculate all statuses after import to ensure due dates are current
+            await this.recalculateAllStatuses();
+            
+            if (window.dashboardManager) {
+                console.log('Updating dashboard...');
+                window.dashboardManager.updateDashboard();
+            }
+            
+            // Verify import by checking count
+            const allVulns = await this.db.select('vulnerabilities');
+            console.log(`Total vulnerabilities in database: ${allVulns.length}`);
+            
+            // Show appropriate message
+            let message = '';
+            const totalProcessed = importedCount + removedCount + updatedCount + unchangedCount;
+            const successRate = totalProcessed > 0 ? ((totalProcessed - errorCount) / totalProcessed * 100) : 100;
+            
+            // Only show error if more than 10% of items failed
+            if (errorCount === 0 || successRate >= 90) {
+                // Build message focusing on new additions and removals
+                const parts = [];
+                
+                if (importedCount > 0) {
+                    parts.push(`${importedCount} new added`);
+                }
+                
+                if (removedCount > 0) {
+                    parts.push(`${removedCount} removed (resolved)`);
+                }
+                
+                if (updatedCount > 0) {
+                    parts.push(`${updatedCount} updated`);
+                }
+                
+                if (parts.length > 0) {
+                    message = `Import complete: ${parts.join(', ')}. Total: ${allVulns.length}`;
+                    if (errorCount > 0) {
+                        message += ` (${errorCount} skipped)`;
+                    }
+                } else if (unchangedCount > 0) {
+                    message = `No changes needed. ${unchangedCount} vulnerabilities already up-to-date.`;
+                } else {
+                    message = `Import completed. No new or updated vulnerabilities.`;
+                }
+                this.showSuccess(message);
+            } else {
+                this.showError(`Import completed with ${errorCount} errors. ${importedCount} new, ${removedCount} removed, ${updatedCount} updated. Check console.`);
+            }
+        }, 100);
+    }
+
+    showVulnerabilityModal(vulnerability = null) {
+        const modalHtml = `
+            <div class="modal" id="vulnerabilityModal">
+                <div class="modal-header">
+                    <h3 class="modal-title">${vulnerability ? 'Edit Vulnerability' : 'Add New Vulnerability'}</h3>
+                    <button class="modal-close" id="vulnerabilityModalClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="vulnerabilityForm">
+                        <div class="form-group">
+                            <label for="vulnerabilityTitle">Request Item / Title *</label>
+                            <input type="text" id="vulnerabilityTitle" class="form-control" required 
+                                   value="${this.escapeHtml(vulnerability?.title || '')}" placeholder="Enter request item or title">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilitySeverity">Severity Level *</label>
+                            <select id="vulnerabilitySeverity" class="form-control" required>
+                                <option value="">Select Severity</option>
+                                <option value="Low" ${vulnerability?.severity === 'Low' ? 'selected' : ''}>Low</option>
+                                <option value="Moderate" ${vulnerability?.severity === 'Moderate' ? 'selected' : ''}>Moderate</option>
+                                <option value="High" ${vulnerability?.severity === 'High' ? 'selected' : ''}>High</option>
+                                <option value="Critical" ${vulnerability?.severity === 'Critical' ? 'selected' : ''}>Critical</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityDescription">Description</label>
+                            <textarea id="vulnerabilityDescription" class="form-control" rows="4" 
+                                      placeholder="Enter detailed description">${this.escapeHtml(vulnerability?.description || '')}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityAssignmentGroup">Assignment Group</label>
+                            <input type="text" id="vulnerabilityAssignmentGroup" class="form-control" 
+                                   value="${this.escapeHtml(vulnerability?.assignment_group || '')}" 
+                                   placeholder="Enter assignment group">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityDueDate">Due Date</label>
+                            <input type="date" id="vulnerabilityDueDate" class="form-control" 
+                                   value="${vulnerability?.due_date || ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityStatus">Status</label>
+                            <select id="vulnerabilityStatus" class="form-control">
+                                <option value="Open" ${vulnerability?.status === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="Due" ${vulnerability?.status === 'Due' ? 'selected' : ''}>Due</option>
+                                <option value="Breached" ${vulnerability?.status === 'Breached' ? 'selected' : ''}>Breached</option>
+                                <option value="Resolved" ${vulnerability?.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityDiscoveredDate">Discovered Date</label>
+                            <input type="date" id="vulnerabilityDiscoveredDate" class="form-control" 
+                                   value="${vulnerability?.discovered_date || new Date().toISOString().split('T')[0]}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="vulnerabilityResolvedDate">Resolved Date</label>
+                            <input type="date" id="vulnerabilityResolvedDate" class="form-control" 
+                                   value="${vulnerability?.resolved_date || ''}" 
+                                   placeholder="Set when vulnerability is resolved">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="vulnerabilityModalCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="vulnerabilityModalSave">
+                        ${vulnerability ? 'Update Vulnerability' : 'Add Vulnerability'}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.getElementById('modalContainer');
+        modalContainer.innerHTML = modalHtml;
+        modalContainer.classList.add('active');
+
+        // Attach event listeners
+        const vulnerabilityId = vulnerability?.id || null;
+        
+        document.getElementById('vulnerabilityModalClose').addEventListener('click', () => this.closeModal());
+        document.getElementById('vulnerabilityModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('vulnerabilityModalSave').addEventListener('click', () => this.saveVulnerability(vulnerabilityId));
+
+        setTimeout(() => {
+            const titleInput = document.getElementById('vulnerabilityTitle');
+            if (titleInput) titleInput.focus();
+        }, 100);
+
+        const statusSelect = document.getElementById('vulnerabilityStatus');
+        if (statusSelect) {
+            statusSelect.addEventListener('change', (e) => {
+                const resolvedDateField = document.getElementById('vulnerabilityResolvedDate');
+                if (e.target.value === 'Resolved' && !resolvedDateField.value) {
+                    resolvedDateField.value = new Date().toISOString().split('T')[0];
+                }
+            });
+        }
+    }
+
+    async saveVulnerability(vulnerabilityId) {
+        try {
+            const formData = {
+                title: document.getElementById('vulnerabilityTitle').value.trim(),
+                severity: document.getElementById('vulnerabilitySeverity').value,
+                description: document.getElementById('vulnerabilityDescription').value.trim(),
+                assignment_group: document.getElementById('vulnerabilityAssignmentGroup').value.trim(),
+                due_date: document.getElementById('vulnerabilityDueDate').value,
+                status: document.getElementById('vulnerabilityStatus').value,
+                discovered_date: document.getElementById('vulnerabilityDiscoveredDate').value,
+                resolved_date: document.getElementById('vulnerabilityResolvedDate').value
+            };
+
+            if (!formData.title) {
+                this.showError('Title is required');
+                return;
+            }
+
+            if (!formData.severity) {
+                this.showError('Severity level is required');
+                return;
+            }
+
+            if (!formData.discovered_date) {
+                formData.discovered_date = new Date().toISOString().split('T')[0];
+            }
+
+            if (formData.status === 'Resolved' && !formData.resolved_date) {
+                formData.resolved_date = new Date().toISOString().split('T')[0];
+            }
+
+            if (formData.status !== 'Resolved') {
+                formData.resolved_date = null;
+            }
+
+            if (vulnerabilityId) {
+                await this.db.update('vulnerabilities', vulnerabilityId, formData);
+                this.showSuccess('Vulnerability updated successfully');
+            } else {
+                await this.db.insert('vulnerabilities', formData);
+                this.showSuccess('Vulnerability added successfully');
+            }
+
+            this.closeModal();
+            await this.loadVulnerabilities();
+            
+            // Recalculate all statuses after manual edit
+            await this.recalculateAllStatuses();
+            
+            if (window.dashboardManager) {
+                window.dashboardManager.updateDashboard();
+            }
+
+        } catch (error) {
+            console.error('Error saving vulnerability:', error);
+            this.showError('Failed to save vulnerability');
+        }
+    }
+
+    async editVulnerability(vulnerabilityId) {
+        try {
+            const vulnerabilities = await this.db.select('vulnerabilities', 'id = ?', [vulnerabilityId]);
+            if (vulnerabilities.length > 0) {
+                this.showVulnerabilityModal(vulnerabilities[0]);
+            } else {
+                this.showError('Vulnerability not found');
+            }
+        } catch (error) {
+            console.error('Error loading vulnerability for edit:', error);
+            this.showError('Failed to load vulnerability');
+        }
+    }
+
+    async deleteVulnerability(vulnerabilityId) {
+        if (!confirm('Are you sure you want to delete this vulnerability? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await this.db.delete('vulnerabilities', vulnerabilityId);
+            this.showSuccess('Vulnerability deleted successfully');
+            await this.loadVulnerabilities();
+            
+            if (window.dashboardManager) {
+                window.dashboardManager.updateDashboard();
+            }
+        } catch (error) {
+            console.error('Error deleting vulnerability:', error);
+            this.showError('Failed to delete vulnerability');
+        }
+    }
+
+    getSeverityClass(severity) {
+        switch (severity) {
+            case 'Critical': return 'danger';
+            case 'High': return 'warning';
+            case 'Moderate': return 'info';
+            case 'Medium': return 'info';
+            case 'Low': return 'success';
+            default: return 'secondary';
+        }
+    }
+
+    getStatusClass(status) {
+        switch (status) {
+            case 'Open': return 'success';
+            case 'Due': return 'warning';
+            case 'Breached': return 'danger';
+            case 'In Progress': return 'info';
+            case 'Resolved': return 'secondary';
+            default: return 'success';
+        }
+    }
+
+    formatDate(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString();
+    }
+
+    closeModal() {
+        const modalContainer = document.getElementById('modalContainer');
+        modalContainer.innerHTML = '';
+        modalContainer.classList.remove('active');
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    escapeCsv(text) {
+        if (!text) return '';
+        return String(text).replace(/"/g, '""');
+    }
+
+    showSuccess(message) {
+        this.showToast(message, 'success');
+    }
+
+    showError(message) {
+        this.showToast(message, 'error');
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+
+        let toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastSlideOut 0.3s ease';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
+
+    getVulnerabilityStats() {
+        try {
+            const stats = this.db.getDashboardStats();
+            return stats.vulnerabilities;
+        } catch (error) {
+            console.error('Error getting vulnerability stats:', error);
+            return {
+                total: 0,
+                open: 0,
+                inProgress: 0,
+                resolved: 0,
+                bySeverity: []
+            };
+        }
+    }
+
+    getVulnerabilityChartData() {
+        try {
+            const result = this.db.query(`
+                SELECT severity, COUNT(*) as count 
+                FROM vulnerabilities 
+                GROUP BY severity
+            `);
+            return this.db.formatQueryResult(result);
+        } catch (error) {
+            console.error('Error getting vulnerability chart data:', error);
+            return [];
+        }
+    }
+
+    getVulnerabilityTrends(days = 30) {
+        try {
+            const result = this.db.query(`
+                SELECT 
+                    DATE(discovered_date) as date,
+                    COUNT(*) as count
+                FROM vulnerabilities 
+                WHERE discovered_date >= date('now', '-${days} days')
+                GROUP BY DATE(discovered_date)
+                ORDER BY date
+            `);
+            return this.db.formatQueryResult(result);
+        } catch (error) {
+            console.error('Error getting vulnerability trends:', error);
+            return [];
+        }
     }
 }
 
+// Initialize vulnerabilities manager when database is ready
 async function initVulnerabilitiesManager() {
-    console.log('[VULN] init start');
+    console.log('=== initVulnerabilitiesManager() START ===');
+    
     try {
-        await window.dbManager.ready;
-        window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
-        await window.vulnerabilitiesManager.init();
-        console.log('[VULN] init complete - manager ready');
-    } catch(e) {
-        console.error('[VULN] init error:', e);
+        // Wait for database to be ready
+        if (window.dbManager && window.dbManager.ready) {
+            console.log('Waiting for database...');
+            await window.dbManager.ready;
+            console.log('Database ready!');
+        } else {
+            console.log('WARNING: window.dbManager not available');
+            return;
+        }
+        
+        if (window.dbManager) {
+            console.log('Creating VulnerabilitiesManager...');
+            window.vulnerabilitiesManager = new VulnerabilitiesManager(window.dbManager);
+            console.log('Vulnerabilities manager CREATED and assigned to window.vulnerabilitiesManager');
+            
+            // Initialize the manager fully
+            console.log('Initializing VulnerabilitiesManager...');
+            await window.vulnerabilitiesManager.init();
+            console.log('VulnerabilitiesManager initialization completed');
+        } else {
+            console.error('ERROR: window.dbManager is null after waiting!');
+        }
+    } catch (error) {
+        console.error('ERROR in initVulnerabilitiesManager:', error);
     }
+    
+    console.log('=== initVulnerabilitiesManager() END ===');
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVulnerabilitiesManager);
-} else {
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded - starting initVulnerabilitiesManager');
     initVulnerabilitiesManager();
-}
+});
 
-window.handleXlsxImportSafe = function(e) {
-    console.log('[VULN] handleXlsxImportSafe called', e);
-    if (!window.vulnerabilitiesManager) {
-        alert('Vulnerabilities manager not initialized. Please refresh the page.');
-        return;
+// Wrapper functions for inline HTML event handlers
+window.handleXlsxImportSafe = function(event) {
+    console.log('[VULN] handleXlsxImportSafe called');
+    if (window.vulnerabilitiesManager) {
+        window.vulnerabilitiesManager.handleXlsxImport(event);
+    } else {
+        console.error('Vulnerabilities manager not initialized');
+        alert('Please refresh the page and try again.');
     }
-    window.vulnerabilitiesManager.handleXlsxImport(e);
 };
 
 window.showVulnerabilityModalSafe = function() {
     console.log('[VULN] showVulnerabilityModalSafe called');
-    if (!window.vulnerabilitiesManager) {
-        alert('Vulnerabilities manager not initialized. Please refresh the page.');
-        return;
+    if (window.vulnerabilitiesManager) {
+        window.vulnerabilitiesManager.showVulnerabilityModal();
+    } else {
+        console.error('Vulnerabilities manager not initialized');
+        alert('Please refresh the page and try again.');
     }
-    window.vulnerabilitiesManager.showVulnerabilityModal();
 };
