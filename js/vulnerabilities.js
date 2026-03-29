@@ -7,27 +7,47 @@ class VulnerabilitiesManager {
     }
 
     async init() {
+        console.log('[VULN] init called');
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+        }
         this.attachEventListeners();
         await this.loadVulnerabilities();
         this.initialized = true;
+        console.log('[VULN] init complete');
     }
 
     attachEventListeners() {
+        console.log('[VULN] attachEventListeners running');
+        
         const addBtn = document.getElementById('addVulnerabilityBtn');
         if (addBtn) {
-            addBtn.onclick = () => this.showVulnerabilityModal();
+            addBtn.addEventListener('click', () => this.showVulnerabilityModal());
+            console.log('[VULN] addVulnerabilityBtn listener attached');
+        } else {
+            console.log('[VULN] addVulnerabilityBtn not found');
         }
         
         const importBtn = document.getElementById('importXlsxBtn');
         const fileInput = document.getElementById('xlsxImportInput');
         if (importBtn && fileInput) {
-            importBtn.onclick = () => fileInput.click();
-            fileInput.onchange = (e) => this.handleXlsxImport(e);
+            importBtn.addEventListener('click', () => {
+                console.log('[VULN] Import button clicked');
+                fileInput.click();
+            });
+            fileInput.addEventListener('change', (e) => {
+                console.log('[VULN] File input changed', e.target.files);
+                this.handleXlsxImport(e);
+            });
+            console.log('[VULN] Import listeners attached');
+        } else {
+            console.log('[VULN] importXlsxBtn or xlsxImportInput not found');
         }
         
         const exportBtn = document.getElementById('exportVulnerabilitiesBtn');
         if (exportBtn) {
-            exportBtn.onclick = () => this.exportVulnerabilities();
+            exportBtn.addEventListener('click', () => this.exportVulnerabilities());
+            console.log('[VULN] exportVulnerabilitiesBtn listener attached');
         }
     }
 
