@@ -267,7 +267,7 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
 
         // Add updated_at timestamp
         updateFields.push('`updated_at` = ?');
-        updateValues.push(new Date().toISOString());
+        updateValues.push(new Date().toISOString().replace('T', ' ').replace('Z', ''));
         
         // Add id for WHERE clause
         updateValues.push(id);
