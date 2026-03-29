@@ -576,7 +576,18 @@ class VulnerabilitiesManager {
         reader.onload = (e) => {
             try {
                 const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = XLSX.read(data, { 
+                    type: 'array',
+                    cellFormula: false,
+                    cellHTML: false,
+                    cellText: false,
+                    sheetStubs: false,
+                    sheetRows: 0,
+                    bookSheets: false,
+                    bookProps: false,
+                    ignoreKeys: true,
+                    defString: ''
+                });
                 
                 console.log('Available sheets:', workbook.SheetNames);
                 
@@ -706,17 +717,37 @@ class VulnerabilitiesManager {
                 return;
             }
             
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            // Handle worksheets with images/embedded content
+            let jsonData;
+            try {
+                jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                    header: 1, 
+                    defval: '',
+                    blankrows: false
+                });
+            } catch (sheetError) {
+                console.warn('Error with standard parsing, trying raw mode:', sheetError);
+                // Fallback: try with raw mode which ignores formulas and some errors
+                jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                    header: 1, 
+                    raw: true, 
+                    defval: '',
+                    blankrows: false
+                });
+            }
             
             console.log(`Sheet "${sheetName}" has ${jsonData.length} rows`);
             
-            if (jsonData.length < 2) {
+            if (!jsonData || jsonData.length < 2) {
                 this.showError('Selected sheet appears to be empty or has no data rows');
                 return;
             }
 
-            // Extract headers (first row)
-            const headers = jsonData[0].map(h => String(h || '').toLowerCase().trim());
+            // Extract headers (first row) - filter out non-string values
+            const headers = jsonData[0].map(h => {
+                if (h === null || h === undefined) return '';
+                return String(h).toLowerCase().trim();
+            });
             console.log('Headers found:', headers);
             
             // Show preview first so user can see what was detected
