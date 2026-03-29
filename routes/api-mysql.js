@@ -371,10 +371,20 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
 
         Object.keys(updateData).forEach(key => {
             if (updateData[key] !== undefined && updateData[key] !== null) {
+                // Skip updated_at - we'll set it with MySQL NOW()
+                if (key === 'updated_at') return;
+                
                 // Convert camelCase to snake_case
-                const dbField = fieldMapping[key] || key;
+                let dbField = fieldMapping[key] || key;
+                let value = updateData[key];
+                
+                // Handle date fields - strip time portion
+                if (['due_date', 'discovered_date', 'resolved_date'].includes(dbField) && value) {
+                    value = String(value).split(' ')[0].split('T')[0];
+                }
+                
                 updateFields.push(`${dbField} = ?`);
-                updateValues.push(updateData[key]);
+                updateValues.push(value);
             }
         });
 
@@ -382,9 +392,8 @@ router.put('/vulnerabilities/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'No valid fields to update' });
         }
 
-        // Add updated_at timestamp
-        updateFields.push(`updated_at = ?`);
-        updateValues.push(new Date().toISOString());
+        // Use MySQL NOW() for timestamp - no parameter needed
+        updateFields.push(`updated_at = NOW()`);
         
         // Add id for WHERE clause
         updateValues.push(id);
