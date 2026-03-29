@@ -54,7 +54,9 @@ class VulnerabilitiesManager {
 
     async loadVulnerabilities() {
         try {
+            console.log('Loading vulnerabilities... db:', this.db);
             const vulnerabilities = await this.db.select('vulnerabilities');
+            console.log('Loaded vulnerabilities count:', vulnerabilities.length);
             this.renderVulnerabilities(vulnerabilities);
             this.attachRowListeners();
         } catch (error) {
