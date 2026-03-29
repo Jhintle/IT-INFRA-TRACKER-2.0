@@ -174,13 +174,9 @@ class VulnerabilitiesManager {
                 const wb = XLSX.read(data, {type:'array'});
                 console.log('[VULN] Workbook sheets:', wb.SheetNames, 'count:', wb.SheetNames.length);
                 
-                if (wb.SheetNames.length > 1) {
-                    console.log('[VULN] Multiple sheets - showing selector');
-                    this.showSheetSelector(wb);
-                } else {
-                    console.log('[VULN] Single sheet - processing');
-                    this.processSheet(wb, wb.SheetNames[0]);
-                }
+                // Always show sheet selector so user can choose
+                console.log('[VULN] Showing sheet selector');
+                this.showSheetSelector(wb);
             } catch(err) { 
                 console.error('[VULN] Parse error:', err); 
                 alert('Error reading file: ' + err.message); 
