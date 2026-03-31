@@ -910,12 +910,14 @@ class VulnerabilitiesManager {
                 }
 
                 const priority = priorityIdx >= 0 ? String(row[priorityIdx] || '') : '';
+                console.log(`Row ${i}: Priority raw value = "${priority}"`);
                 const description = descriptionIdx >= 0 ? String(row[descriptionIdx] || '') : '';
                 const shortDescription = shortDescIdx >= 0 ? String(row[shortDescIdx] || '') : '';
                 const dueDate = dueDateIdx >= 0 ? this.parseExcelDate(row[dueDateIdx]) : '';
                 const assignmentGroup = assignmentGroupIdx >= 0 ? String(row[assignmentGroupIdx] || '') : '';
 
                 const severity = this.mapPriorityToSeverity(priority);
+                console.log(`Row ${i}: Mapped severity = "${severity}"`);
 
                 // Combine descriptions
                 const fullDescription = shortDescription 
@@ -1093,12 +1095,19 @@ class VulnerabilitiesManager {
                     // Check if any fields need updating
                     const needsUpdate = (
                         (vuln.due_date && existingVuln.due_date !== vuln.due_date) ||
-                        (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group)
+                        (vuln.assignment_group && existingVuln.assignment_group !== vuln.assignment_group) ||
+                        (vuln.severity && existingVuln.severity !== vuln.severity)
                     );
                     
                     if (needsUpdate) {
                         const updateData = {};
                         const updateNotes = [];
+                        
+                        // Check severity
+                        if (vuln.severity && existingVuln.severity !== vuln.severity) {
+                            updateData.severity = vuln.severity;
+                            updateNotes.push(`Severity: ${existingVuln.severity} → ${vuln.severity}`);
+                        }
                         
                         // Check due date
                         if (vuln.due_date && existingVuln.due_date !== vuln.due_date) {
